@@ -91,6 +91,7 @@ export const startEngine = async (
   };
   window.addEventListener("resize", handleResize);
   scene.onDisposeObservable.add(() => {
+    engine.stopRenderLoop();
     window.removeEventListener("resize", handleResize);
   });
 
