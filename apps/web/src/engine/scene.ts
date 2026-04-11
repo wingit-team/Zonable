@@ -61,17 +61,13 @@ export const startEngine = async (
   );
   sunLight.position = new Vector3(250, 500, 250);
 
-  const ssaoPipeline = new SSAO2RenderingPipeline(
+  new SSAO2RenderingPipeline(
     "ssao-pipeline",
     scene,
     {
       ssaoRatio: 0.5,
       blurRatio: 1,
     },
-    [camera],
-  );
-  scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline(
-    ssaoPipeline.name,
     [camera],
   );
 
@@ -91,8 +87,12 @@ export const startEngine = async (
     scene.render();
   });
 
-  window.addEventListener("resize", () => {
+  const handleResize = () => {
     engine.resize();
+  };
+  window.addEventListener("resize", handleResize);
+  scene.onDisposeObservable.add(() => {
+    window.removeEventListener("resize", handleResize);
   });
 
   return { engine, scene };
