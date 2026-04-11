@@ -3,3 +3,5 @@ pnpm-lock.yaml
 dist
 .DS_Store
 *.tsbuildinfo
+
+packages/pathfinding/target
