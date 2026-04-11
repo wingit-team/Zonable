@@ -17,7 +17,7 @@ export type EngineStartResult = {
 };
 
 const createEngine = async (canvas: HTMLCanvasElement): Promise<Engine> => {
-  if (await WebGPUEngine.IsSupportedAsync) {
+  if (await WebGPUEngine.IsSupportedAsync()) {
     const webgpuEngine = new WebGPUEngine(canvas, {
       antialiasing: true,
     });
@@ -27,7 +27,6 @@ const createEngine = async (canvas: HTMLCanvasElement): Promise<Engine> => {
   }
 
   return new Engine(canvas, true, {
-    antialias: true,
     stencil: true,
   });
 };
