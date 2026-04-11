@@ -1,0 +1,9 @@
+{
+  "name": "@zonable/pathfinding",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "cargo check --manifest-path Cargo.toml",
+    "typecheck": "cargo check --manifest-path Cargo.toml"
+  }
+}

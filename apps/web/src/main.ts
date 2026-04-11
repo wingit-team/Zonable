@@ -25,12 +25,10 @@ const spawnWorker = <TInput, TOutput>(url: URL) => {
   return {
     tick(input: TInput): Promise<TOutput> {
       return new Promise<TOutput>((resolve) => {
-        const onMessage = (event: MessageEvent<TOutput>): void => {
-          worker.removeEventListener('message', onMessage as EventListener);
+        worker.onmessage = (event: MessageEvent<TOutput>): void => {
+          worker.onmessage = null;
           resolve(event.data);
         };
-
-        worker.addEventListener('message', onMessage as EventListener, { once: true });
         worker.postMessage(input);
       });
     }
@@ -71,7 +69,7 @@ const bootstrap = async (): Promise<void> => {
     engine.resize();
   });
 
-  render(() => <App />, document.getElementById('root') as HTMLElement);
+  render(() => App({}), document.getElementById('root') as HTMLElement);
 };
 
 void bootstrap();
