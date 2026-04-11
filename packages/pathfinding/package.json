@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "cargo check --manifest-path Cargo.toml",
+    "build": "cargo build --manifest-path Cargo.toml --target wasm32-unknown-unknown",
     "typecheck": "cargo check --manifest-path Cargo.toml"
   }
 }
