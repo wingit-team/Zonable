@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js';
 import { Show } from 'solid-js';
 
-import type { Building, BudgetState, CityState, DemandState, Tile } from '../types';
+import type { Building, BudgetState, CityState, DemandState, Tile, ZoneType } from '../types';
 import { BudgetPanel } from './BudgetPanel';
 import { DemandBar } from './DemandBar';
 import { InfoPanel } from './InfoPanel';
@@ -17,6 +17,7 @@ interface AppProps {
   selectedTile: Tile | null;
   selectedBuilding: Building | null;
   activeTool: ToolName;
+  selectedZone: Exclude<ZoneType, 'none'>;
   brushSize: number;
   notifications: string[];
   saveState: 'idle' | 'saving' | 'saved';
@@ -24,6 +25,7 @@ interface AppProps {
   simulationSpeed: 0 | 1 | 2 | 3;
   audioVolume: number;
   onToolChange: (tool: ToolName) => void;
+  onZoneChange: (zone: Exclude<ZoneType, 'none'>) => void;
   onBrushSizeChange: (size: number) => void;
   onDemolish: () => void;
   onPanTo: (x: number, z: number) => void;
@@ -52,7 +54,14 @@ export const App: Component<AppProps> = (props) => (
         @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }`}
     </style>
     <div style={{ ...panelStyle, bottom: '10px', left: '50%', transform: 'translateX(-50%)' }}>
-      <Toolbar activeTool={props.activeTool} brushSize={props.brushSize} onToolChange={props.onToolChange} onBrushSizeChange={props.onBrushSizeChange} />
+      <Toolbar
+        activeTool={props.activeTool}
+        selectedZone={props.selectedZone}
+        brushSize={props.brushSize}
+        onToolChange={props.onToolChange}
+        onZoneChange={props.onZoneChange}
+        onBrushSizeChange={props.onBrushSizeChange}
+      />
     </div>
     <div style={{ ...panelStyle, top: '10px', right: '10px', display: 'grid', gap: '8px' }}>
       <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' }}>

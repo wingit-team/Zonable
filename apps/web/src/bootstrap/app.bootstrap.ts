@@ -22,10 +22,8 @@ export const bootstrapApp = async (): Promise<void> => {
   const saveAdapter = createSaveAdapter();
   const canvas = createCanvas();
   const { engine, scene } = await startEngine(canvas);
-
   const grid = new GridSystem('New Zonable');
   await grid.init();
-
   const loadedCity = await saveAdapter.load('autosave');
   if (loadedCity) {
     grid.setState(loadedCity);
@@ -42,7 +40,6 @@ export const bootstrapApp = async (): Promise<void> => {
   const zoneTool = new ZoneTool(grid);
   const bulldozeTool = new BulldozeTool(grid);
   const terrainTool = new TerrainTool(grid);
-
   await Promise.all([
     sceneSystem.init(),
     terrainSystem.init(),
@@ -69,21 +66,18 @@ export const bootstrapApp = async (): Promise<void> => {
     roadChangesSinceLastSave += 1;
   });
 
-  const economyWorker = spawnWorker<
-    { budget: CityState['budget']; city: CityState },
-    { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null
-  >(new URL('../simulation/workers/economy.worker.ts', import.meta.url));
-
+  const economyWorker = spawnWorker<{ budget: CityState['budget']; city: CityState }, { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null>(
+    new URL('../simulation/workers/economy.worker.ts', import.meta.url)
+  );
   const trafficWorker = spawnWorker<{ adjacency: Record<string, string[]>; citizenCounts: Record<string, number> }, Record<string, number>>(
     new URL('../simulation/workers/traffic.worker.ts', import.meta.url)
   );
-
   const citizensWorker = spawnWorker<{ city: CityState; gameTime: number }, { positions: Array<{ id: string; progress: number; state: string }>; happinessByTile: Record<string, number> }>(
     new URL('../simulation/workers/citizens.worker.ts', import.meta.url)
   );
-
   const [city, setCity] = createSignal(grid.getState());
   const [activeTool, setActiveTool] = createSignal<'road' | 'zone' | 'bulldoze' | 'terrain' | 'services'>('zone');
+  const [selectedZone, setSelectedZone] = createSignal<'residential' | 'commercial' | 'industrial'>('residential');
   const [brushSize, setBrushSize] = createSignal(1);
   const [saveState, setSaveState] = createSignal<'idle' | 'saving' | 'saved'>('idle');
   const [notifications, setNotifications] = createSignal<string[]>(['Welcome to Zonable']);
@@ -102,9 +96,7 @@ export const bootstrapApp = async (): Promise<void> => {
   };
 
   window.setInterval(() => void persist('autosave'), AUTOSAVE_INTERVAL_MS);
-  window.addEventListener('zonable:service:placed', () => {
-    void persist('autosave');
-  });
+  window.addEventListener('zonable:service:placed', () => void persist('autosave'));
 
   scene.onPointerDown = () => {
     const picked = pickTile(scene);
@@ -116,7 +108,7 @@ export const bootstrapApp = async (): Promise<void> => {
     setSelectedTileId(tileId);
     const tool = activeTool();
     if (tool === 'zone') {
-      zoneTool.paint(picked.x, picked.z, 'residential', brushSize());
+      zoneTool.paint(picked.x, picked.z, selectedZone(), brushSize());
     }
     if (tool === 'bulldoze') {
       const cost = bulldozeTool.clear(picked.x, picked.z, brushSize());
@@ -238,6 +230,7 @@ export const bootstrapApp = async (): Promise<void> => {
             })()
           : null,
         activeTool: activeTool(),
+        selectedZone: selectedZone(),
         brushSize: brushSize(),
         notifications: notifications(),
         saveState: saveState(),
@@ -245,6 +238,7 @@ export const bootstrapApp = async (): Promise<void> => {
         simulationSpeed: simulationSpeed(),
         audioVolume: audioVolume(),
         onToolChange: (tool) => setActiveTool(tool),
+        onZoneChange: (zone) => setSelectedZone(zone),
         onBrushSizeChange: (size) => setBrushSize(size),
         onDemolish: () => {
           const selected = selectedTileId();
