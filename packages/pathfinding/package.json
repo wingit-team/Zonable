@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "cargo build --manifest-path Cargo.toml --target wasm32-unknown-unknown",
-    "typecheck": "cargo check --manifest-path Cargo.toml"
+    "build": "wasm-pack build --target web --out-dir pkg",
+    "typecheck": "cargo check --manifest-path Cargo.toml",
+    "clean": "rm -rf pkg"
+  },
+  "devDependencies": {
+    "wasm-pack": "^0.13.1"
   }
 }

@@ -13,7 +13,6 @@ export const setZone = (city: CityState, tileId: string, zone: ZoneType): CitySt
     tiles: {
       ...city.tiles,
       [tileId]: nextTile
-    },
-    updatedAt: Date.now()
+    }
   };
 };

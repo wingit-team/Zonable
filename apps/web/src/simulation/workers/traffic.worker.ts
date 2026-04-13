@@ -1,27 +1,36 @@
 /// <reference lib="webworker" />
 
-import type { CityState, SimulationTickInput, Tile } from '../../types';
+import type { WorkerMessage } from '../../types';
 
-const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
-
-const updateTrafficPollution = (city: CityState): CityState => {
-  const tiles = Object.fromEntries(
-    Object.entries(city.tiles).map(([tileId, tile]): [string, Tile] => {
-      const congestion = tile.road === 'none' ? 0 : tile.road === 'two_lane' ? 0.05 : tile.road === 'four_lane' ? 0.03 : 0.02;
-      const pollution = clamp01(tile.pollution + congestion * city.params.pollutionSpreadRate);
-      return [tileId, { ...tile, pollution }];
-    })
-  );
-
-  return {
-    ...city,
-    tiles,
-    updatedAt: Date.now()
-  };
+type TrafficTickPayload = {
+  adjacency: Record<string, string[]>;
+  citizenCounts: Record<string, number>;
 };
 
-self.onmessage = (event: MessageEvent<SimulationTickInput>) => {
-  self.postMessage(updateTrafficPollution(event.data.city));
+type TrafficResultPayload = Record<string, number>;
+
+const congestionState: Record<string, number> = {};
+const SEGMENT_CAPACITY = 30;
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
+self.onmessage = (event: MessageEvent<WorkerMessage<TrafficTickPayload>>): void => {
+  if (event.data.type !== 'TRAFFIC_TICK') {
+    return;
+  }
+
+  const result: TrafficResultPayload = {};
+  Object.keys(event.data.payload.adjacency).forEach((segmentId) => {
+    const count = event.data.payload.citizenCounts[segmentId] ?? 0;
+    const previous = congestionState[segmentId] ?? 0;
+    const pressure = count > SEGMENT_CAPACITY ? 0.08 : -0.05;
+    const next = clamp01(previous + pressure);
+    congestionState[segmentId] = next;
+    result[segmentId] = next;
+  });
+
+  const message: WorkerMessage<TrafficResultPayload> = { type: 'TRAFFIC_RESULT', payload: result };
+  self.postMessage(message);
 };
 
 export {};

@@ -1,25 +1,29 @@
-import type { CityState, Tile } from '../types';
+import { BULLDOZE_COST_PER_TILE } from '../config/simulation.params';
+import type { GridSystem } from '../simulation/grid';
 
-export const bulldozeTile = (city: CityState, tileId: string): CityState => {
-  const tile = city.tiles[tileId];
-  if (!tile) {
-    return city;
+export class BulldozeTool {
+  private readonly grid: GridSystem;
+
+  constructor(grid: GridSystem) {
+    this.grid = grid;
   }
 
-  const nextTile: Tile = {
-    ...tile,
-    zone: 'none',
-    road: 'none',
-    buildingId: null,
-    serviceIds: []
-  };
+  async init(): Promise<void> {
+    return Promise.resolve();
+  }
 
-  return {
-    ...city,
-    tiles: {
-      ...city.tiles,
-      [tileId]: nextTile
-    },
-    updatedAt: Date.now()
-  };
-};
+  update(_dt: number): void {
+    // Tool is user input driven.
+  }
+
+  clear(centerX: number, centerZ: number, brushSize: number): number {
+    let cleared = 0;
+    for (let dz = -brushSize + 1; dz < brushSize; dz += 1) {
+      for (let dx = -brushSize + 1; dx < brushSize; dx += 1) {
+        this.grid.demolish(centerX + dx, centerZ + dz);
+        cleared += 1;
+      }
+    }
+    return cleared * BULLDOZE_COST_PER_TILE;
+  }
+}

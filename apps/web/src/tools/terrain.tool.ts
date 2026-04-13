@@ -1,22 +1,26 @@
-import type { CityState, Tile } from '../types';
+import type { GridSystem } from '../simulation/grid';
 
-export const raiseTerrain = (city: CityState, tileId: string, amount: number): CityState => {
-  const tile = city.tiles[tileId];
-  if (!tile) {
-    return city;
+export class TerrainTool {
+  private readonly grid: GridSystem;
+
+  constructor(grid: GridSystem) {
+    this.grid = grid;
   }
 
-  const nextTile: Tile = {
-    ...tile,
-    elevation: tile.elevation + amount
-  };
+  async init(): Promise<void> {
+    return Promise.resolve();
+  }
 
-  return {
-    ...city,
-    tiles: {
-      ...city.tiles,
-      [tileId]: nextTile
-    },
-    updatedAt: Date.now()
-  };
-};
+  update(_dt: number): void {
+    // Tool is user input driven.
+  }
+
+  sculpt(tileId: string, amount: number): void {
+    const [x, z] = tileId.split('_').map(Number);
+    const tile = this.grid.getTile(x, z);
+    if (!tile) {
+      return;
+    }
+    this.grid.setElevation(x, z, tile.elevation + amount);
+  }
+}

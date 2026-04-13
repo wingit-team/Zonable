@@ -75,21 +75,13 @@ export interface CityState {
   tiles: Record<string, Tile>;
   buildings: Record<string, Building>;
   roads: Record<string, RoadSegment>;
-  citizens: Record<string, CitizenAgent>;
   demand: DemandState;
   budget: BudgetState;
-  params: SimulationParams;
-  tick: number;
-  updatedAt: number;
-}
-
-export interface SaveSlot {
-  id: string;
-  city: CityState;
+  gameTime: number;
   savedAt: number;
 }
 
-export interface SimulationTickInput {
-  city: CityState;
-  deltaMs: number;
-}
+export type WorkerMessage<T = unknown> = {
+  type: string;
+  payload: T;
+};

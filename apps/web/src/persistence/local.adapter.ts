@@ -1,59 +1,65 @@
-import type { CityState, SaveSlot } from '../types';
+import type { CityState } from '../types';
+import type { SaveAdapter } from './adapter';
 
-const SAVE_PREFIX = 'zonable-save:';
+const SAVE_PREFIX = 'zonable_city_';
+const INDEX_KEY = 'zonable_index';
+const MAX_SAVE_BYTES = 4 * 1024 * 1024;
 
-export interface CityStorageAdapter {
-  save(slotId: string, city: CityState): Promise<void>;
-  load(slotId: string): Promise<CityState | null>;
-  list(): Promise<SaveSlot[]>;
-  remove(slotId: string): Promise<void>;
-}
+const keyFor = (cityName: string): string => `${SAVE_PREFIX}${cityName}`;
 
-const keyFor = (slotId: string): string => `${SAVE_PREFIX}${slotId}`;
-
-export class LocalStorageAdapter implements CityStorageAdapter {
-  async save(slotId: string, city: CityState): Promise<void> {
-    const slot: SaveSlot = {
-      id: slotId,
-      city,
-      savedAt: Date.now()
-    };
-
-    localStorage.setItem(keyFor(slotId), JSON.stringify(slot));
+const parseIndex = (raw: string | null): string[] => {
+  if (!raw) {
+    return [];
   }
 
-  async load(slotId: string): Promise<CityState | null> {
-    const raw = localStorage.getItem(keyFor(slotId));
-    if (!raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const getIndex = (): string[] => parseIndex(localStorage.getItem(INDEX_KEY));
+
+const setIndex = (cityNames: string[]): void => {
+  localStorage.setItem(INDEX_KEY, JSON.stringify(cityNames));
+};
+
+export class LocalSaveAdapter implements SaveAdapter {
+  async save(cityName: string, state: CityState): Promise<void> {
+    const payload = JSON.stringify({ ...state, savedAt: Date.now() });
+    if (payload.length > MAX_SAVE_BYTES) {
+      console.warn(`[Zonable] Save '${cityName}' exceeds 4MB (${payload.length} bytes).`);
+    }
+
+    localStorage.setItem(keyFor(cityName), payload);
+
+    const index = getIndex();
+    if (!index.includes(cityName)) {
+      setIndex([...index, cityName]);
+    }
+  }
+
+  async load(cityName: string): Promise<CityState | null> {
+    const payload = localStorage.getItem(keyFor(cityName));
+    if (!payload) {
       return null;
     }
 
-    const parsed = JSON.parse(raw) as SaveSlot;
-    return parsed.city;
-  }
-
-  async list(): Promise<SaveSlot[]> {
-    const saves: SaveSlot[] = [];
-
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (!key || !key.startsWith(SAVE_PREFIX)) {
-        continue;
-      }
-
-      const raw = localStorage.getItem(key);
-      if (!raw) {
-        continue;
-      }
-
-      const save = JSON.parse(raw) as SaveSlot;
-      saves.push(save);
+    try {
+      return JSON.parse(payload) as CityState;
+    } catch {
+      return null;
     }
-
-    return saves.sort((a, b) => b.savedAt - a.savedAt);
   }
 
-  async remove(slotId: string): Promise<void> {
-    localStorage.removeItem(keyFor(slotId));
+  async listCities(): Promise<string[]> {
+    return getIndex();
+  }
+
+  async delete(cityName: string): Promise<void> {
+    localStorage.removeItem(keyFor(cityName));
+    setIndex(getIndex().filter((name) => name !== cityName));
   }
 }
