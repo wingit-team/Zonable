@@ -1,11 +1,11 @@
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 
+import { AUTOSAVE_INTERVAL_MS, ROAD_AUTOSAVE_SEGMENT_DELTA } from '../config/simulation.params';
 import { PostFxSystem } from '../engine/postfx';
 import { RendererSystem } from '../engine/renderer';
 import { SceneSystem, startEngine } from '../engine/scene';
 import { TerrainSystem } from '../engine/terrain';
-import { AUTOSAVE_INTERVAL_MS, ROAD_AUTOSAVE_SEGMENT_DELTA } from '../config/simulation.params';
 import { createSaveAdapter } from '../persistence/adapter';
 import { BudgetSystem } from '../simulation/budget';
 import { DemandSystem } from '../simulation/demand';
@@ -15,9 +15,10 @@ import { BulldozeTool } from '../tools/bulldoze';
 import { RoadTool } from '../tools/road';
 import { TerrainTool } from '../tools/terrain.tool';
 import { ZoneTool } from '../tools/zone';
-import { App } from '../ui/App';
 import type { CityState } from '../types';
+import { App } from '../ui/App';
 import { createCanvas, pickTile, spawnWorker } from './helpers';
+
 export const bootstrapApp = async (): Promise<void> => {
   const saveAdapter = createSaveAdapter();
   const canvas = createCanvas();
@@ -25,9 +26,8 @@ export const bootstrapApp = async (): Promise<void> => {
   const grid = new GridSystem('New Zonable');
   await grid.init();
   const loadedCity = await saveAdapter.load('autosave');
-  if (loadedCity) {
-    grid.setState(loadedCity);
-  }
+  if (loadedCity) grid.setState(loadedCity);
+
   const sceneSystem = new SceneSystem(scene, canvas);
   const terrainSystem = new TerrainSystem(scene);
   const rendererSystem = new RendererSystem(scene);
@@ -39,6 +39,7 @@ export const bootstrapApp = async (): Promise<void> => {
   const zoneTool = new ZoneTool(grid);
   const bulldozeTool = new BulldozeTool(grid);
   const terrainTool = new TerrainTool(grid);
+
   await Promise.all([
     sceneSystem.init(),
     terrainSystem.init(),
@@ -52,6 +53,7 @@ export const bootstrapApp = async (): Promise<void> => {
     bulldozeTool.init(),
     terrainTool.init()
   ]);
+
   window.addEventListener(GRID_EVENTS.zoneChanged, (event) => {
     terrainSystem.onZoneChanged((event as CustomEvent<{ tileId: string; zone: 'none' | 'residential' | 'commercial' | 'industrial' }>).detail);
   });
@@ -63,15 +65,11 @@ export const bootstrapApp = async (): Promise<void> => {
   window.addEventListener(GRID_EVENTS.roadChanged, () => {
     roadChangesSinceLastSave += 1;
   });
-  const economyWorker = spawnWorker<{ budget: CityState['budget']; city: CityState }, { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null>(
-    new URL('../simulation/workers/economy.worker.ts', import.meta.url)
-  );
-  const trafficWorker = spawnWorker<{ adjacency: Record<string, string[]>; citizenCounts: Record<string, number> }, Record<string, number>>(
-    new URL('../simulation/workers/traffic.worker.ts', import.meta.url)
-  );
-  const citizensWorker = spawnWorker<{ city: CityState; gameTime: number }, { positions: Array<{ id: string; progress: number; state: string }>; happinessByTile: Record<string, number> }>(
-    new URL('../simulation/workers/citizens.worker.ts', import.meta.url)
-  );
+
+  const economyWorker = spawnWorker<{ budget: CityState['budget']; city: CityState }, { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null>(new URL('../simulation/workers/economy.worker.ts', import.meta.url));
+  const trafficWorker = spawnWorker<{ adjacency: Record<string, string[]>; citizenCounts: Record<string, number> }, Record<string, number>>(new URL('../simulation/workers/traffic.worker.ts', import.meta.url));
+  const citizensWorker = spawnWorker<{ city: CityState; gameTime: number }, { positions: Array<{ id: string; progress: number; state: string }>; happinessByTile: Record<string, number> }>(new URL('../simulation/workers/citizens.worker.ts', import.meta.url));
+
   const [city, setCity] = createSignal(grid.getState());
   const [activeTool, setActiveTool] = createSignal<'road' | 'zone' | 'bulldoze' | 'terrain' | 'services'>('zone');
   const [selectedZone, setSelectedZone] = createSignal<'residential' | 'commercial' | 'industrial'>('residential');
@@ -83,6 +81,7 @@ export const bootstrapApp = async (): Promise<void> => {
   const [simulationSpeed, setSimulationSpeed] = createSignal<0 | 1 | 2 | 3>(1);
   const [audioVolume, setAudioVolume] = createSignal(0.5);
   const [selectedTileId, setSelectedTileId] = createSignal<string | null>(null);
+
   let pendingRoadStart: string | null = null;
   const persist = async (name: string): Promise<void> => {
     setSaveState('saving');
@@ -91,26 +90,24 @@ export const bootstrapApp = async (): Promise<void> => {
     window.setTimeout(() => setSaveState('idle'), 1200);
     roadChangesSinceLastSave = 0;
   };
+
   window.setInterval(() => void persist('autosave'), AUTOSAVE_INTERVAL_MS);
   window.addEventListener('zonable:service:placed', () => void persist('autosave'));
+
   scene.onPointerDown = () => {
     const picked = pickTile(scene);
-    if (!picked) {
-      return;
-    }
+    if (!picked) return;
+
     const tileId = `${picked.x}_${picked.z}`;
     setSelectedTileId(tileId);
     const tool = activeTool();
-    if (tool === 'zone') {
-      zoneTool.paint(picked.x, picked.z, selectedZone(), brushSize());
-    }
+
+    if (tool === 'zone') zoneTool.paint(picked.x, picked.z, selectedZone(), brushSize());
     if (tool === 'bulldoze') {
       const cost = bulldozeTool.clear(picked.x, picked.z, brushSize());
       setNotifications((existing) => [...existing, `Bulldozed for ${cost}`]);
     }
-    if (tool === 'terrain') {
-      terrainTool.sculpt(tileId, 0.2);
-    }
+    if (tool === 'terrain') terrainTool.sculpt(tileId, 0.2);
     if (tool === 'services') {
       servicesSystem.placeService(tileId, selectedService());
       setNotifications((existing) => [...existing, `${selectedService()} service placed`]);
@@ -122,20 +119,33 @@ export const bootstrapApp = async (): Promise<void> => {
       } else {
         const placed = roadTool.commit(tileId);
         pendingRoadStart = null;
-        if (placed > 0) {
-          setNotifications((existing) => [...existing, `Road segments added: ${placed}`]);
-        }
+        if (placed > 0) setNotifications((existing) => [...existing, `Road segments added: ${placed}`]);
       }
     }
+
     setCity(grid.getState());
     demandSystem.update(0);
   };
+
   let lastFrame = performance.now();
   let economyElapsed = 0;
   let trafficElapsed = 0;
   let citizensElapsed = 0;
+  const workerBusy = { economy: false, traffic: false, citizens: false };
   let recoveredFromSsaoError = false;
-  engine.runRenderLoop(async () => {
+
+  const runWorker = <T,>(key: 'economy' | 'traffic' | 'citizens', run: () => Promise<T>, onSuccess?: (result: T) => void): void => {
+    if (workerBusy[key]) return;
+    workerBusy[key] = true;
+    void run()
+      .then((result) => onSuccess?.(result))
+      .catch((error) => console.warn(`[Zonable] ${key} worker error.`, error))
+      .finally(() => {
+        workerBusy[key] = false;
+      });
+  };
+
+  engine.runRenderLoop(() => {
     try {
       const now = performance.now();
       const dt = (now - lastFrame) * Math.max(0, simulationSpeed());
@@ -145,6 +155,7 @@ export const bootstrapApp = async (): Promise<void> => {
         scene.render();
         return;
       }
+
       sceneSystem.update(dt);
       terrainSystem.update(dt);
       rendererSystem.update(dt);
@@ -157,37 +168,30 @@ export const bootstrapApp = async (): Promise<void> => {
       nextCity = demandSystem.compute(nextCity);
       setCity(nextCity);
       grid.setState(nextCity);
-
       economyElapsed += dt;
       trafficElapsed += dt;
       citizensElapsed += dt;
 
       if (economyElapsed >= 5000) {
         economyElapsed = 0;
-        const message = await economyWorker.tick({ type: 'ECONOMY_TICK', payload: { budget: city().budget, city: city() } });
-        if (message.type === 'BANKRUPTCY_WARNING') {
-          setNotifications((existing) => [...existing, 'Bankruptcy warning']);
-        }
-        if (message.type === 'ECONOMY_RESULT' && message.payload) {
-          const next = { ...city(), budget: message.payload.budget };
-          setCity(next);
-          grid.setState(next);
-        }
+        runWorker('economy', () => economyWorker.tick({ type: 'ECONOMY_TICK', payload: { budget: city().budget, city: city() } }), (message) => {
+          if (message.type === 'BANKRUPTCY_WARNING') setNotifications((existing) => [...existing, 'Bankruptcy warning']);
+          if (message.type === 'ECONOMY_RESULT' && message.payload) {
+            const next = { ...city(), budget: message.payload.budget };
+            setCity(next);
+            grid.setState(next);
+          }
+        });
       }
-
       if (trafficElapsed >= 200) {
         trafficElapsed = 0;
-        await trafficWorker.tick({ type: 'TRAFFIC_TICK', payload: { adjacency: grid.getRoadGraphAdjacency(), citizenCounts: {} } });
+        runWorker('traffic', () => trafficWorker.tick({ type: 'TRAFFIC_TICK', payload: { adjacency: grid.getRoadGraphAdjacency(), citizenCounts: {} } }));
       }
-
       if (citizensElapsed >= 500) {
         citizensElapsed = 0;
-        await citizensWorker.tick({ type: 'CITIZENS_TICK', payload: { city: city(), gameTime: city().gameTime } });
+        runWorker('citizens', () => citizensWorker.tick({ type: 'CITIZENS_TICK', payload: { city: city(), gameTime: city().gameTime } }));
       }
-
-      if (roadChangesSinceLastSave > ROAD_AUTOSAVE_SEGMENT_DELTA) {
-        void persist('autosave');
-      }
+      if (roadChangesSinceLastSave > ROAD_AUTOSAVE_SEGMENT_DELTA) void persist('autosave');
       scene.render();
     } catch (error) {
       if (!recoveredFromSsaoError) {
@@ -200,17 +204,15 @@ export const bootstrapApp = async (): Promise<void> => {
       console.error('[Zonable] Render loop error.', error);
     }
   });
-  window.addEventListener('beforeunload', () => {
-    void saveAdapter.save('autosave', city());
-  });
 
+  window.addEventListener('beforeunload', () => void saveAdapter.save('autosave', city()));
   window.addEventListener('resize', () => engine.resize());
+
   const root = document.getElementById('root');
-  if (!root) {
-    return;
-  }
+  if (!root) return;
   root.style.position = 'relative';
   root.style.zIndex = '1';
+
   render(
     () =>
       App({
@@ -221,10 +223,7 @@ export const bootstrapApp = async (): Promise<void> => {
         selectedBuilding: selectedTileId()
           ? (() => {
               const tile = city().tiles[selectedTileId() as string];
-              if (!tile?.buildingId) {
-                return null;
-              }
-              return city().buildings[tile.buildingId] ?? null;
+              return tile?.buildingId ? city().buildings[tile.buildingId] ?? null : null;
             })()
           : null,
         activeTool: activeTool(),
@@ -242,9 +241,7 @@ export const bootstrapApp = async (): Promise<void> => {
         onBrushSizeChange: (size) => setBrushSize(size),
         onDemolish: () => {
           const selected = selectedTileId();
-          if (!selected) {
-            return;
-          }
+          if (!selected) return;
           const [x, z] = selected.split('_').map(Number);
           grid.demolish(x, z);
           setCity(grid.getState());
@@ -252,9 +249,7 @@ export const bootstrapApp = async (): Promise<void> => {
         onPanTo: (mapX, mapZ) => {
           const tileX = (mapX / 200) * 150;
           const tileZ = (mapZ / 200) * 150;
-          const worldX = tileX * 10 - (150 * 10) / 2;
-          const worldZ = tileZ * 10 - (150 * 10) / 2;
-          sceneSystem.panToWorld(worldX, worldZ);
+          sceneSystem.panToWorld(tileX * 10 - 750, tileZ * 10 - 750);
         },
         onTaxRateChange: (zone, value) => {
           budgetSystem.setTaxRate(zone, value);
@@ -270,18 +265,10 @@ export const bootstrapApp = async (): Promise<void> => {
         },
         onGraphicsChange: (key, enabled) => {
           setGraphics((prev) => ({ ...prev, [key]: enabled }));
-          if (key === 'ssao') {
-            postFxSystem.setSSAOEnabled(enabled);
-          }
-          if (key === 'bloom') {
-            postFxSystem.setBloomEnabled(enabled);
-          }
-          if (key === 'shadows') {
-            postFxSystem.setShadowsEnabled(enabled);
-          }
-          if (key === 'dof') {
-            postFxSystem.setDofEnabled(enabled);
-          }
+          if (key === 'ssao') postFxSystem.setSSAOEnabled(enabled);
+          if (key === 'bloom') postFxSystem.setBloomEnabled(enabled);
+          if (key === 'shadows') postFxSystem.setShadowsEnabled(enabled);
+          if (key === 'dof') postFxSystem.setDofEnabled(enabled);
         },
         onSimulationSpeedChange: (speed) => setSimulationSpeed(speed),
         onAudioVolumeChange: (value) => setAudioVolume(value),

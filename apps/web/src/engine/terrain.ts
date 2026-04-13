@@ -48,6 +48,10 @@ export class TerrainSystem {
       colors.push(this.baseColor.r, this.baseColor.g, this.baseColor.b, 1);
     }
     this.ground.setVerticesData(VertexBuffer.ColorKind, colors, true);
+    const groundMaterial = new StandardMaterial('terrain-ground-material', this.scene);
+    groundMaterial.specularColor = Color3.Black();
+    groundMaterial.emissiveColor = new Color3(0.08, 0.1, 0.1);
+    this.ground.material = groundMaterial;
 
     this.hoverOverlay = MeshBuilder.CreateGround('terrain-hover', { width: TILE_SIZE, height: TILE_SIZE }, this.scene);
     this.hoverOverlay.position.y = 0.03;
