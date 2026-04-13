@@ -11,6 +11,15 @@ const COVERAGE_RADIUS: Record<ServiceType, number> = {
 
 const distance = (from: Tile, to: Tile): number => Math.hypot(from.x - to.x, from.z - to.z);
 
+const getCardinalNeighborIds = (tile: Tile): string[] => [
+  `${tile.x + 1}_${tile.z}`,
+  `${tile.x - 1}_${tile.z}`,
+  `${tile.x}_${tile.z + 1}`,
+  `${tile.x}_${tile.z - 1}`
+];
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
 export class ServicesSystem {
   private city: CityState;
 
@@ -56,16 +65,19 @@ export class ServicesSystem {
 
   private applyCoverage(city: CityState): CityState {
     const serviceTiles = Object.values(city.tiles).filter((tile) => tile.serviceIds.length > 0);
+    const poweredRoadTiles = this.computePoweredRoadTiles(city, serviceTiles);
     const nextTiles: Record<string, Tile> = {};
 
     for (const tile of Object.values(city.tiles)) {
-      const covered = serviceTiles.some((serviceTile) =>
-        serviceTile.serviceIds.some((service) => distance(serviceTile, tile) <= COVERAGE_RADIUS[service])
-      );
+      const covered =
+        poweredRoadTiles.has(tile.id) ||
+        serviceTiles.some((serviceTile) =>
+          serviceTile.serviceIds.some((service) => service !== 'power' && distance(serviceTile, tile) <= COVERAGE_RADIUS[service])
+        );
 
       nextTiles[tile.id] = {
         ...tile,
-        landValue: Math.max(0, Math.min(1, tile.landValue + (covered ? 0.1 : 0)))
+        landValue: clamp01(tile.landValue + (covered ? 0.1 : 0))
       };
     }
 
@@ -73,10 +85,55 @@ export class ServicesSystem {
       Object.entries(city.buildings).map(([id, building]) => {
         const tile = nextTiles[building.tileId];
         const covered = tile.landValue > city.tiles[building.tileId].landValue;
-        return [id, { ...building, happiness: Math.max(0, Math.min(1, building.happiness + (covered ? 0.01 : -0.05))) }];
+        return [id, { ...building, happiness: clamp01(building.happiness + (covered ? 0.01 : -0.05)) }];
       })
     );
 
     return { ...city, tiles: nextTiles, buildings: nextBuildings };
+  }
+
+  private computePoweredRoadTiles(city: CityState, serviceTiles: Tile[]): Set<string> {
+    const powerTiles = serviceTiles.filter((tile) => tile.serviceIds.includes('power'));
+    if (powerTiles.length === 0) {
+      return new Set<string>();
+    }
+
+    const visited = new Set<string>();
+    const queue: string[] = [];
+
+    for (const powerTile of powerTiles) {
+      if (powerTile.road !== 'none') {
+        queue.push(powerTile.id);
+      }
+
+      getCardinalNeighborIds(powerTile).forEach((neighborId) => {
+        const neighbor = city.tiles[neighborId];
+        if (neighbor && neighbor.road !== 'none') {
+          queue.push(neighbor.id);
+        }
+      });
+    }
+
+    while (queue.length > 0) {
+      const currentId = queue.shift() as string;
+      if (visited.has(currentId)) {
+        continue;
+      }
+
+      const current = city.tiles[currentId];
+      if (!current || current.road === 'none') {
+        continue;
+      }
+
+      visited.add(currentId);
+      getCardinalNeighborIds(current).forEach((neighborId) => {
+        const neighbor = city.tiles[neighborId];
+        if (neighbor && neighbor.road !== 'none' && !visited.has(neighbor.id)) {
+          queue.push(neighbor.id);
+        }
+      });
+    }
+
+    return visited;
   }
 }
