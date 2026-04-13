@@ -1,6 +1,6 @@
 import type { Component } from 'solid-js';
 
-import type { ZoneType } from '../types';
+import type { ServiceType, ZoneType } from '../types';
 
 export type ToolName = 'road' | 'zone' | 'bulldoze' | 'terrain' | 'services';
 
@@ -8,9 +8,11 @@ interface ToolbarProps {
   activeTool: ToolName;
   brushSize: number;
   selectedZone: Exclude<ZoneType, 'none'>;
+  selectedService: ServiceType;
   onToolChange: (tool: ToolName) => void;
   onBrushSizeChange: (size: number) => void;
   onZoneChange: (zone: Exclude<ZoneType, 'none'>) => void;
+  onServiceChange: (service: ServiceType) => void;
 }
 
 const buttonStyle = (active: boolean): Record<string, string> => ({
@@ -33,6 +35,15 @@ export const Toolbar: Component<ToolbarProps> = (props) => (
 		{(['residential', 'commercial', 'industrial'] as const).map((zone) => (
 		  <button type="button" style={buttonStyle(props.selectedZone === zone)} onClick={() => props.onZoneChange(zone)}>
 			{zone[0].toUpperCase()}
+		  </button>
+		))}
+	  </div>
+	)}
+	{props.activeTool === 'services' && (
+	  <div style={{ display: 'flex', gap: '4px' }}>
+		{(['fire', 'police', 'health', 'education', 'power', 'water'] as const).map((service) => (
+		  <button type="button" style={buttonStyle(props.selectedService === service)} onClick={() => props.onServiceChange(service)}>
+			{service[0].toUpperCase()}
 		  </button>
 		))}
 	  </div>

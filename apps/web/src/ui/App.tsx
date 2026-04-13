@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js';
 import { Show } from 'solid-js';
 
-import type { Building, BudgetState, CityState, DemandState, Tile, ZoneType } from '../types';
+import type { Building, BudgetState, CityState, DemandState, ServiceType, Tile, ZoneType } from '../types';
 import { BudgetPanel } from './BudgetPanel';
 import { DemandBar } from './DemandBar';
 import { InfoPanel } from './InfoPanel';
@@ -18,6 +18,7 @@ interface AppProps {
   selectedBuilding: Building | null;
   activeTool: ToolName;
   selectedZone: Exclude<ZoneType, 'none'>;
+  selectedService: ServiceType;
   brushSize: number;
   notifications: string[];
   saveState: 'idle' | 'saving' | 'saved';
@@ -26,6 +27,7 @@ interface AppProps {
   audioVolume: number;
   onToolChange: (tool: ToolName) => void;
   onZoneChange: (zone: Exclude<ZoneType, 'none'>) => void;
+  onServiceChange: (service: ServiceType) => void;
   onBrushSizeChange: (size: number) => void;
   onDemolish: () => void;
   onPanTo: (x: number, z: number) => void;
@@ -57,9 +59,11 @@ export const App: Component<AppProps> = (props) => (
       <Toolbar
         activeTool={props.activeTool}
         selectedZone={props.selectedZone}
+        selectedService={props.selectedService}
         brushSize={props.brushSize}
         onToolChange={props.onToolChange}
         onZoneChange={props.onZoneChange}
+        onServiceChange={props.onServiceChange}
         onBrushSizeChange={props.onBrushSizeChange}
       />
     </div>

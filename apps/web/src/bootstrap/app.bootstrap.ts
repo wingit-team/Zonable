@@ -78,6 +78,7 @@ export const bootstrapApp = async (): Promise<void> => {
   const [city, setCity] = createSignal(grid.getState());
   const [activeTool, setActiveTool] = createSignal<'road' | 'zone' | 'bulldoze' | 'terrain' | 'services'>('zone');
   const [selectedZone, setSelectedZone] = createSignal<'residential' | 'commercial' | 'industrial'>('residential');
+  const [selectedService, setSelectedService] = createSignal<'fire' | 'police' | 'health' | 'education' | 'power' | 'water'>('fire');
   const [brushSize, setBrushSize] = createSignal(1);
   const [saveState, setSaveState] = createSignal<'idle' | 'saving' | 'saved'>('idle');
   const [notifications, setNotifications] = createSignal<string[]>(['Welcome to Zonable']);
@@ -118,8 +119,8 @@ export const bootstrapApp = async (): Promise<void> => {
       terrainTool.sculpt(tileId, 0.2);
     }
     if (tool === 'services') {
-      servicesSystem.placeService(tileId, 'fire');
-      setNotifications((existing) => [...existing, 'Fire service placed']);
+      servicesSystem.placeService(tileId, selectedService());
+      setNotifications((existing) => [...existing, `${selectedService()} service placed`]);
     }
     if (tool === 'road') {
       if (!pendingRoadStart) {
@@ -231,6 +232,7 @@ export const bootstrapApp = async (): Promise<void> => {
           : null,
         activeTool: activeTool(),
         selectedZone: selectedZone(),
+        selectedService: selectedService(),
         brushSize: brushSize(),
         notifications: notifications(),
         saveState: saveState(),
@@ -239,6 +241,7 @@ export const bootstrapApp = async (): Promise<void> => {
         audioVolume: audioVolume(),
         onToolChange: (tool) => setActiveTool(tool),
         onZoneChange: (zone) => setSelectedZone(zone),
+        onServiceChange: (service) => setSelectedService(service),
         onBrushSizeChange: (size) => setBrushSize(size),
         onDemolish: () => {
           const selected = selectedTileId();
