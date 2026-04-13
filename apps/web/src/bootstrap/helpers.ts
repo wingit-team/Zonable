@@ -1,3 +1,5 @@
+import '@babylonjs/core/Culling/ray';
+
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { WorkerMessage } from '../types';

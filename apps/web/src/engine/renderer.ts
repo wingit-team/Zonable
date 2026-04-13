@@ -47,6 +47,7 @@ export class RendererSystem {
       const zoneType: ZoneType = poolType.startsWith('res') ? 'residential' : poolType.startsWith('com') ? 'commercial' : 'industrial';
       const base = MeshBuilder.CreateBox(`base-${poolType}`, { width: 7, depth: 7, height: 6 + Number(poolType.slice(-1)) * 3 }, this.scene);
       base.isVisible = false;
+      base.receiveShadows = true;
       const material = new StandardMaterial(`mat-${poolType}`, this.scene);
       material.diffuseColor = poolColor(zoneType);
       material.emissiveColor = Color3.Black();
@@ -58,7 +59,6 @@ export class RendererSystem {
         const instance = base.createInstance(`${poolType}-${i}`);
         instance.scaling = Vector3.Zero();
         instance.position = new Vector3(0, -1000, 0);
-        instance.receiveShadows = true;
         instances.push(instance);
       }
 

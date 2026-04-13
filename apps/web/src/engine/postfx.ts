@@ -1,5 +1,6 @@
 import '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline';
+import '@babylonjs/core/Rendering/prePassRendererSceneComponent';
 
 import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import { SSAO2RenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline';
@@ -22,14 +23,19 @@ export class PostFxSystem {
       return;
     }
 
-    this.ssao = new SSAO2RenderingPipeline('ssao2', this.scene, {
-      ssaoRatio: 1,
-      blurRatio: 1
-    });
-    this.ssao.radius = 2;
-    this.ssao.totalStrength = 1.2;
-    this.ssao.samples = 16;
-    this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao2', camera);
+    try {
+      this.ssao = new SSAO2RenderingPipeline('ssao2', this.scene, {
+        ssaoRatio: 1,
+        blurRatio: 1
+      });
+      this.ssao.radius = 2;
+      this.ssao.totalStrength = 1.2;
+      this.ssao.samples = 16;
+      this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao2', camera);
+    } catch (error) {
+      console.warn('[Zonable] SSAO pipeline unavailable, continuing without SSAO.', error);
+      this.ssao = null;
+    }
 
     this.defaultPipeline = new DefaultRenderingPipeline('default-pipeline', true, this.scene, [camera]);
     this.defaultPipeline.bloomEnabled = true;
