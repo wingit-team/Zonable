@@ -23,18 +23,23 @@ export class PostFxSystem {
       return;
     }
 
-    try {
-      this.ssao = new SSAO2RenderingPipeline('ssao2', this.scene, {
-        ssaoRatio: 1,
-        blurRatio: 1
-      });
-      this.ssao.radius = 2;
-      this.ssao.totalStrength = 1.2;
-      this.ssao.samples = 16;
-      this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao2', camera);
-    } catch (error) {
-      console.warn('[Zonable] SSAO pipeline unavailable, continuing without SSAO.', error);
-      this.ssao = null;
+    const engine = this.scene.getEngine() as { isWebGPU?: boolean };
+    const shouldSkipSsao = engine.isWebGPU === true;
+
+    if (!shouldSkipSsao) {
+      try {
+        this.ssao = new SSAO2RenderingPipeline('ssao2', this.scene, {
+          ssaoRatio: 1,
+          blurRatio: 1
+        });
+        this.ssao.radius = 2;
+        this.ssao.totalStrength = 1.2;
+        this.ssao.samples = 16;
+        this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao2', camera);
+      } catch (error) {
+        console.warn('[Zonable] SSAO pipeline unavailable, continuing without SSAO.', error);
+        this.ssao = null;
+      }
     }
 
     this.defaultPipeline = new DefaultRenderingPipeline('default-pipeline', true, this.scene, [camera]);
