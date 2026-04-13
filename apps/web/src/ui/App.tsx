@@ -47,13 +47,17 @@ const panelStyle = {
 
 export const App: Component<AppProps> = (props) => (
   <div>
+    <style>
+      {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }`}
+    </style>
     <div style={{ ...panelStyle, bottom: '10px', left: '50%', transform: 'translateX(-50%)' }}>
       <Toolbar activeTool={props.activeTool} brushSize={props.brushSize} onToolChange={props.onToolChange} onBrushSizeChange={props.onBrushSizeChange} />
     </div>
     <div style={{ ...panelStyle, top: '10px', right: '10px', display: 'grid', gap: '8px' }}>
       <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' }}>
         <DemandBar demand={props.demand} />
-        <Show when={props.saveState === 'saving'} fallback={<span>{props.saveState === 'saved' ? 'Saved ✓' : ''}</span>}>
+        <Show when={props.saveState === 'saving'} fallback={<span style={props.saveState === 'saved' ? { animation: 'pop 180ms ease' } : {}}>{props.saveState === 'saved' ? 'Saved ✓' : ''}</span>}>
           <span style={{ animation: 'spin 1s linear infinite' }}>Saving...</span>
         </Show>
       </div>

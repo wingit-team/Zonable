@@ -90,6 +90,10 @@ export class SceneSystem {
     this.hemiLight.diffuse = ambient;
   }
 
+  panToWorld(x: number, z: number): void {
+    this.camera.setTarget(new Vector3(x, 0, z));
+  }
+
   getShadowGenerator(): ShadowGenerator {
     return this.shadowGenerator;
   }

@@ -255,8 +255,12 @@ export const bootstrapApp = async (): Promise<void> => {
           grid.demolish(x, z);
           setCity(grid.getState());
         },
-        onPanTo: () => {
-          // Camera pan sync lands in the next pass.
+        onPanTo: (mapX, mapZ) => {
+          const tileX = (mapX / 200) * 150;
+          const tileZ = (mapZ / 200) * 150;
+          const worldX = tileX * 10 - (150 * 10) / 2;
+          const worldZ = tileZ * 10 - (150 * 10) / 2;
+          sceneSystem.panToWorld(worldX, worldZ);
         },
         onTaxRateChange: (zone, value) => {
           budgetSystem.setTaxRate(zone, value);
