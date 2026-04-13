@@ -14,8 +14,11 @@ const distance = (from: Tile, to: Tile): number => Math.hypot(from.x - to.x, fro
 export class ServicesSystem {
   private city: CityState;
 
-  constructor(initialCity: CityState) {
+  private readonly eventTarget: EventTarget;
+
+  constructor(initialCity: CityState, eventTarget: EventTarget = window) {
     this.city = initialCity;
+    this.eventTarget = eventTarget;
   }
 
   async init(): Promise<void> {
@@ -39,6 +42,12 @@ export class ServicesSystem {
         [tileId]: { ...tile, serviceIds: [...tile.serviceIds, service] }
       }
     };
+
+    this.eventTarget.dispatchEvent(
+      new CustomEvent('zonable:service:placed', {
+        detail: { tileId, service }
+      })
+    );
   }
 
   getState(): CityState {
