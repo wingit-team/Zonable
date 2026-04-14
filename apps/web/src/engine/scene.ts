@@ -103,6 +103,14 @@ export class SceneSystem {
     this.cameraController.resetView();
   }
 
+  getCameraState(): { x: number; z: number; radius: number } {
+    return {
+      x: this.camera.target.x,
+      z: this.camera.target.z,
+      radius: this.camera.radius
+    };
+  }
+
   getShadowGenerator(): ShadowGenerator {
     return this.shadowGenerator;
   }

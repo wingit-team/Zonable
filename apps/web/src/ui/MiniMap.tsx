@@ -1,10 +1,11 @@
 import type { Component } from 'solid-js';
-import { onMount } from 'solid-js';
+import { createEffect } from 'solid-js';
 
 import type { CityState } from '../types';
 
 interface MiniMapProps {
   city: CityState;
+  camera: { x: number; z: number; radius: number };
   onPanTo: (x: number, z: number) => void;
 }
 
@@ -24,7 +25,7 @@ const zoneColor = (zone: string): string => {
 export const MiniMap: Component<MiniMapProps> = (props) => {
   let canvasRef: HTMLCanvasElement | undefined;
 
-  onMount(() => {
+  createEffect(() => {
 	if (!canvasRef) {
 	  return;
 	}
@@ -36,10 +37,20 @@ export const MiniMap: Component<MiniMapProps> = (props) => {
 	const size = 200;
 	const gridSize = Math.sqrt(Object.keys(props.city.tiles).length);
 	const pixelSize = size / gridSize;
+	ctx.clearRect(0, 0, size, size);
+
 	Object.values(props.city.tiles).forEach((tile) => {
 	  ctx.fillStyle = zoneColor(tile.zone);
 	  ctx.fillRect(tile.x * pixelSize, tile.z * pixelSize, pixelSize, pixelSize);
 	});
+
+	const cameraTileX = (props.camera.x + (gridSize * 10) / 2) / 10;
+	const cameraTileZ = (props.camera.z + (gridSize * 10) / 2) / 10;
+	const viewportTiles = Math.max(8, props.camera.radius * 0.45);
+	const viewportPixels = viewportTiles * pixelSize;
+	ctx.strokeStyle = '#ffffff';
+	ctx.lineWidth = 1;
+	ctx.strokeRect(cameraTileX * pixelSize - viewportPixels / 2, cameraTileZ * pixelSize - viewportPixels / 2, viewportPixels, viewportPixels);
   });
 
   return (

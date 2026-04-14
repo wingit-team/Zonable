@@ -1,6 +1,5 @@
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-
 import { AUTOSAVE_INTERVAL_MS, ROAD_AUTOSAVE_SEGMENT_DELTA } from '../config/simulation.params';
 import { PostFxSystem } from '../engine/postfx';
 import { RendererSystem } from '../engine/renderer';
@@ -20,7 +19,6 @@ import type { CityState } from '../types';
 import { App } from '../ui/App';
 import { createCanvas, pickTile, spawnWorker } from './helpers';
 import { setupRenderBridge } from './render.bridge';
-
 export const bootstrapApp = async (): Promise<void> => {
   const saveAdapter = createSaveAdapter();
   const canvas = createCanvas();
@@ -29,7 +27,6 @@ export const bootstrapApp = async (): Promise<void> => {
   await grid.init();
   const loadedCity = await saveAdapter.load('autosave');
   if (loadedCity) grid.setState(loadedCity);
-
   const sceneSystem = new SceneSystem(scene, canvas);
   const terrainSystem = new TerrainSystem(scene);
   const rendererSystem = new RendererSystem(scene);
@@ -41,7 +38,6 @@ export const bootstrapApp = async (): Promise<void> => {
   const zoneTool = new ZoneTool(grid);
   const bulldozeTool = new BulldozeTool(grid);
   const terrainTool = new TerrainTool(grid);
-
   await Promise.all([
     sceneSystem.init(),
     terrainSystem.init(),
@@ -55,7 +51,6 @@ export const bootstrapApp = async (): Promise<void> => {
     bulldozeTool.init(),
     terrainTool.init()
   ]);
-
   let roadChangesSinceLastSave = 0;
 
   const economyWorker = spawnWorker<{ budget: CityState['budget']; city: CityState }, { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null>(new URL('../simulation/workers/economy.worker.ts', import.meta.url));
@@ -73,6 +68,7 @@ export const bootstrapApp = async (): Promise<void> => {
   const [simulationSpeed, setSimulationSpeed] = createSignal<0 | 1 | 2 | 3>(1);
   const [audioVolume, setAudioVolume] = createSignal(0.5);
   const [selectedTileId, setSelectedTileId] = createSignal<string | null>(null);
+  const [cameraState, setCameraState] = createSignal(sceneSystem.getCameraState());
 
   const spawnAllBuildings = (): void => {
     const state = grid.getState();
@@ -175,6 +171,7 @@ export const bootstrapApp = async (): Promise<void> => {
       }
 
       sceneSystem.update(dt);
+      setCameraState(sceneSystem.getCameraState());
       terrainSystem.update(dt);
       rendererSystem.update(dt);
       postFxSystem.update(dt);
@@ -248,6 +245,7 @@ export const bootstrapApp = async (): Promise<void> => {
         activeTool: activeTool(),
         selectedZone: selectedZone(),
         selectedService: selectedService(),
+        camera: cameraState(),
         brushSize: brushSize(),
         notifications: notifications(),
         saveState: saveState(),

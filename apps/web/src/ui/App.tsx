@@ -19,6 +19,7 @@ interface AppProps {
   activeTool: ToolName;
   selectedZone: Exclude<ZoneType, 'none'>;
   selectedService: ServiceType;
+  camera: { x: number; z: number; radius: number };
   brushSize: number;
   notifications: string[];
   saveState: 'idle' | 'saving' | 'saved';
@@ -78,7 +79,7 @@ export const App: Component<AppProps> = (props) => (
     </div>
     <div style={{ ...panelStyle, 'pointer-events': 'auto', bottom: '10px', right: '10px', display: 'grid', gap: '8px' }}>
       <InfoPanel tile={props.selectedTile} building={props.selectedBuilding} onDemolish={props.onDemolish} />
-      <MiniMap city={props.city} onPanTo={props.onPanTo} />
+      <MiniMap city={props.city} camera={props.camera} onPanTo={props.onPanTo} />
     </div>
     <div style={{ ...panelStyle, 'pointer-events': 'auto', top: '10px', left: '10px', display: 'grid', gap: '8px' }}>
       <NotificationToast messages={props.notifications} />
