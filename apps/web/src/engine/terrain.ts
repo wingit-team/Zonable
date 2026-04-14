@@ -21,12 +21,19 @@ const ZONE_TINT: Record<string, Color3> = {
 const blendColor = (base: Color3, tint: Color3, mix = 0.4): Color4 =>
   new Color4(base.r * (1 - mix) + tint.r * mix, base.g * (1 - mix) + tint.g * mix, base.b * (1 - mix) + tint.b * mix, 1);
 
+const tileCenter = (x: number, z: number): Vector3 =>
+  new Vector3(x * TILE_SIZE - (GRID_SIZE * TILE_SIZE) / 2 + TILE_SIZE / 2, 0, z * TILE_SIZE - (GRID_SIZE * TILE_SIZE) / 2 + TILE_SIZE / 2);
+
 export class TerrainSystem {
   private readonly scene: Scene;
 
   private ground: Mesh | null = null;
 
   private hoverOverlay: Mesh | null = null;
+
+  private readonly roadPatches = new Map<string, Mesh>();
+
+  private readonly serviceMarkers = new Map<string, Mesh>();
 
   private readonly baseColor = new Color3(0.23, 0.3, 0.22);
 
@@ -116,6 +123,48 @@ export class TerrainSystem {
     const vertexIndex = z * (GRID_SIZE + 1) + x;
     positions[vertexIndex * 3 + 1] = payload.elevation;
     this.ground.updateVerticesData(VertexBuffer.PositionKind, positions);
+  }
+
+  onRoadChanged(payload: GridEventPayloadMap['zonable:grid:road-changed']): void {
+    const [x, z] = payload.tileId.split('_').map(Number);
+    const existing = this.roadPatches.get(payload.tileId);
+    if (payload.road === 'none') {
+      existing?.dispose();
+      this.roadPatches.delete(payload.tileId);
+      return;
+    }
+    if (existing) {
+      return;
+    }
+
+    const patch = MeshBuilder.CreateGround(`road-${payload.tileId}`, { width: TILE_SIZE * 0.88, height: TILE_SIZE * 0.88 }, this.scene);
+    patch.position = tileCenter(x, z);
+    patch.position.y = 0.08;
+    const mat = new StandardMaterial(`road-mat-${payload.tileId}`, this.scene);
+    mat.diffuseColor = new Color3(0.18, 0.19, 0.2);
+    mat.specularColor = Color3.Black();
+    patch.material = mat;
+    this.roadPatches.set(payload.tileId, patch);
+  }
+
+  upsertServiceMarker(tileId: string, service: string): void {
+    const [x, z] = tileId.split('_').map(Number);
+    const existing = this.serviceMarkers.get(tileId);
+    if (existing) {
+      existing.dispose();
+    }
+
+    const marker = MeshBuilder.CreateBox(`service-${tileId}`, { width: 3, depth: 3, height: 6 }, this.scene);
+    marker.position = tileCenter(x, z).add(new Vector3(0, 3.2, 0));
+    const mat = new StandardMaterial(`service-mat-${tileId}`, this.scene);
+    mat.diffuseColor = service === 'fire' ? new Color3(0.9, 0.2, 0.2) : service === 'police' ? new Color3(0.2, 0.35, 0.9) : new Color3(0.25, 0.8, 0.85);
+    marker.material = mat;
+    this.serviceMarkers.set(tileId, marker);
+  }
+
+  removeServiceMarker(tileId: string): void {
+    this.serviceMarkers.get(tileId)?.dispose();
+    this.serviceMarkers.delete(tileId);
   }
 
   createRoadRibbon(path: Vector3[]): Mesh {

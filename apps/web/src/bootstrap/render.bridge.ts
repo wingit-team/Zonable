@@ -39,10 +39,21 @@ export const setupRenderBridge = (grid: GridSystem, terrain: TerrainSystem, rend
     }
     renderer.demolishBuilding(buildingId);
     tileToBuildingId.delete(tileId);
+    terrain.removeServiceMarker(tileId);
+    terrain.onRoadChanged({ tileId, road: 'none' });
   });
 
   window.addEventListener(GRID_EVENTS.elevationChanged, (event) => {
     terrain.onElevationChanged((event as CustomEvent<{ tileId: string; elevation: number }>).detail);
+  });
+
+  window.addEventListener(GRID_EVENTS.roadChanged, (event) => {
+    terrain.onRoadChanged((event as CustomEvent<{ tileId: string; road: 'none' | 'two_lane' | 'four_lane' | 'highway' }>).detail);
+  });
+
+  window.addEventListener('zonable:service:placed', (event) => {
+    const detail = (event as CustomEvent<{ tileId: string; service: string }>).detail;
+    terrain.upsertServiceMarker(detail.tileId, detail.service);
   });
 };
 

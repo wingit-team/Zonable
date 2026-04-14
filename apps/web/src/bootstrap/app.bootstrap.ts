@@ -108,7 +108,7 @@ export const bootstrapApp = async (): Promise<void> => {
   window.setInterval(() => void persist('autosave'), AUTOSAVE_INTERVAL_MS);
   window.addEventListener('zonable:service:placed', () => void persist('autosave'));
 
-  scene.onPointerDown = () => {
+  scene.onPointerDown = (event) => {
     const picked = pickTile(scene);
     if (!picked) return;
 
@@ -116,12 +116,12 @@ export const bootstrapApp = async (): Promise<void> => {
     setSelectedTileId(tileId);
     const tool = activeTool();
 
-    if (tool === 'zone') zoneTool.paint(picked.x, picked.z, selectedZone(), brushSize());
+    if (tool === 'zone') zoneTool.paint(picked.x, picked.z, selectedZone(), 1);
     if (tool === 'bulldoze') {
-      const cost = bulldozeTool.clear(picked.x, picked.z, brushSize());
+      const cost = bulldozeTool.clear(picked.x, picked.z, 1);
       setNotifications((existing) => [...existing, `Bulldozed for ${cost}`]);
     }
-    if (tool === 'terrain') terrainTool.sculpt(tileId, 0.2);
+    if (tool === 'terrain') terrainTool.sculpt(tileId, event.shiftKey ? -0.2 : 0.2, brushSize());
     if (tool === 'services') {
       servicesSystem.placeService(tileId, selectedService());
       setNotifications((existing) => [...existing, `${selectedService()} service placed`]);
@@ -130,6 +130,7 @@ export const bootstrapApp = async (): Promise<void> => {
       if (!pendingRoadStart) {
         pendingRoadStart = tileId;
         roadTool.begin(tileId);
+        setNotifications((existing) => [...existing, 'Road start selected']);
       } else {
         const placed = roadTool.commit(tileId);
         pendingRoadStart = null;

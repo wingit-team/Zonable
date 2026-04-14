@@ -33,8 +33,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => (
 	{props.activeTool === 'zone' && (
 	  <div style={{ display: 'flex', gap: '4px' }}>
 		{(['residential', 'commercial', 'industrial'] as const).map((zone) => (
-		  <button type="button" style={buttonStyle(props.selectedZone === zone)} onClick={() => props.onZoneChange(zone)}>
-			{zone[0].toUpperCase()}
+		  <button type="button" style={buttonStyle(props.selectedZone === zone)} onClick={() => props.onZoneChange(zone)} title={zone}>
+			{zone === 'residential' ? 'Res' : zone === 'commercial' ? 'Com' : 'Ind'}
 		  </button>
 		))}
 	  </div>
@@ -48,9 +48,9 @@ export const Toolbar: Component<ToolbarProps> = (props) => (
 		))}
 	  </div>
 	)}
-	{(props.activeTool === 'zone' || props.activeTool === 'bulldoze') && (
+	{props.activeTool === 'terrain' && (
 	  <label style={{ display: 'flex', gap: '4px', 'align-items': 'center' }}>
-		Brush
+		Terrain Brush
 		<select value={props.brushSize} onInput={(event) => props.onBrushSizeChange(Number(event.currentTarget.value))}>
 		  {[1, 2, 3, 4, 5].map((size) => (
 			<option value={size}>{size}</option>
