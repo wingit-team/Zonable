@@ -212,6 +212,7 @@ export const bootstrapApp = async (): Promise<void> => {
   if (!root) return;
   root.style.position = 'relative';
   root.style.zIndex = '1';
+  root.style.background = 'transparent';
 
   render(
     () =>

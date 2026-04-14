@@ -50,12 +50,12 @@ const panelStyle = {
 } as const;
 
 export const App: Component<AppProps> = (props) => (
-  <div>
+  <div style={{ 'pointer-events': 'none' }}>
     <style>
       {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }`}
     </style>
-    <div style={{ ...panelStyle, bottom: '10px', left: '50%', transform: 'translateX(-50%)' }}>
+    <div style={{ ...panelStyle, 'pointer-events': 'auto', bottom: '10px', left: '50%', transform: 'translateX(-50%)' }}>
       <Toolbar
         activeTool={props.activeTool}
         selectedZone={props.selectedZone}
@@ -67,7 +67,7 @@ export const App: Component<AppProps> = (props) => (
         onBrushSizeChange={props.onBrushSizeChange}
       />
     </div>
-    <div style={{ ...panelStyle, top: '10px', right: '10px', display: 'grid', gap: '8px' }}>
+    <div style={{ ...panelStyle, 'pointer-events': 'auto', top: '10px', right: '10px', display: 'grid', gap: '8px' }}>
       <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' }}>
         <DemandBar demand={props.demand} />
         <Show when={props.saveState === 'saving'} fallback={<span style={props.saveState === 'saved' ? { animation: 'pop 180ms ease' } : {}}>{props.saveState === 'saved' ? 'Saved ✓' : ''}</span>}>
@@ -76,11 +76,11 @@ export const App: Component<AppProps> = (props) => (
       </div>
       <BudgetPanel budget={props.budget} onTaxRateChange={props.onTaxRateChange} onBorrow={props.onBorrow} />
     </div>
-    <div style={{ ...panelStyle, bottom: '10px', right: '10px', display: 'grid', gap: '8px' }}>
+    <div style={{ ...panelStyle, 'pointer-events': 'auto', bottom: '10px', right: '10px', display: 'grid', gap: '8px' }}>
       <InfoPanel tile={props.selectedTile} building={props.selectedBuilding} onDemolish={props.onDemolish} />
       <MiniMap city={props.city} onPanTo={props.onPanTo} />
     </div>
-    <div style={{ ...panelStyle, top: '10px', left: '10px', display: 'grid', gap: '8px' }}>
+    <div style={{ ...panelStyle, 'pointer-events': 'auto', top: '10px', left: '10px', display: 'grid', gap: '8px' }}>
       <NotificationToast messages={props.notifications} />
       <SettingsModal
         graphics={props.graphics}
