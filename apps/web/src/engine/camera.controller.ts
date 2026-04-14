@@ -74,10 +74,10 @@ export class CameraController {
     const right = new Vector3(-forward.z, 0, forward.x);
 
     if (this.activeKeys.has('forward')) {
-      this.camera.target.addInPlace(forward.scale(moveSpeed));
+      this.camera.target.addInPlace(forward.scale(-moveSpeed));
     }
     if (this.activeKeys.has('backward')) {
-      this.camera.target.addInPlace(forward.scale(-moveSpeed));
+      this.camera.target.addInPlace(forward.scale(moveSpeed));
     }
     if (this.activeKeys.has('left')) {
       this.camera.target.addInPlace(right.scale(-moveSpeed));
@@ -87,10 +87,10 @@ export class CameraController {
     }
 
     if (this.activeKeys.has('rotateLeft')) {
-      this.camera.alpha -= rotateSpeed;
+      this.camera.alpha += rotateSpeed;
     }
     if (this.activeKeys.has('rotateRight')) {
-      this.camera.alpha += rotateSpeed;
+      this.camera.alpha -= rotateSpeed;
     }
     if (this.activeKeys.has('zoomIn')) {
       this.camera.radius -= zoomSpeed;
