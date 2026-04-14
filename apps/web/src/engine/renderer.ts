@@ -71,6 +71,10 @@ export class RendererSystem {
   }
 
   spawnBuilding(building: Building, worldPosition: Vector3): void {
+    if (this.assignments.has(building.id)) {
+      return;
+    }
+
     const poolKey = poolKeyForBuilding(building);
     const pool = this.pools.get(poolKey);
     if (!pool) {

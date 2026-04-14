@@ -15,6 +15,7 @@ import { BulldozeTool } from '../tools/bulldoze';
 import { RoadTool } from '../tools/road';
 import { TerrainTool } from '../tools/terrain.tool';
 import { ZoneTool } from '../tools/zone';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { CityState } from '../types';
 import { App } from '../ui/App';
 import { createCanvas, pickTile, spawnWorker } from './helpers';
@@ -73,6 +74,17 @@ export const bootstrapApp = async (): Promise<void> => {
   const [audioVolume, setAudioVolume] = createSignal(0.5);
   const [selectedTileId, setSelectedTileId] = createSignal<string | null>(null);
 
+  const spawnAllBuildings = (): void => {
+    const state = grid.getState();
+    Object.values(state.buildings).forEach((building) => {
+      const tile = state.tiles[building.tileId];
+      if (!tile) {
+        return;
+      }
+      rendererSystem.spawnBuilding(building, new Vector3(tile.x * 10 - 745, tile.elevation + 4, tile.z * 10 - 745));
+    });
+  };
+
   setupRenderBridge(grid, terrainSystem, rendererSystem, (next) => setCity(next));
   window.addEventListener(GRID_EVENTS.roadChanged, () => {
     roadChangesSinceLastSave += 1;
@@ -85,6 +97,8 @@ export const bootstrapApp = async (): Promise<void> => {
       }
     }
   }
+  spawnAllBuildings();
+  sceneSystem.resetCamera();
 
   let pendingRoadStart: string | null = null;
   const persist = async (name: string): Promise<void> => {
