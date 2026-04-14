@@ -1,6 +1,6 @@
 import type { CityState, ServiceType, Tile } from '../types';
 
-const COVERAGE_RADIUS: Record<ServiceType, number> = {
+export const SERVICE_COVERAGE_RADIUS: Record<ServiceType, number> = {
   fire: 30,
   police: 25,
   health: 20,
@@ -72,7 +72,7 @@ export class ServicesSystem {
       const covered =
         poweredRoadTiles.has(tile.id) ||
         serviceTiles.some((serviceTile) =>
-          serviceTile.serviceIds.some((service) => service !== 'power' && distance(serviceTile, tile) <= COVERAGE_RADIUS[service])
+          serviceTile.serviceIds.some((service) => service !== 'power' && distance(serviceTile, tile) <= SERVICE_COVERAGE_RADIUS[service])
         );
 
       nextTiles[tile.id] = {

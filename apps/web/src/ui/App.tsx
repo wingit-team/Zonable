@@ -78,7 +78,7 @@ export const App: Component<AppProps> = (props) => (
       <BudgetPanel budget={props.budget} onTaxRateChange={props.onTaxRateChange} onBorrow={props.onBorrow} />
     </div>
     <div style={{ ...panelStyle, 'pointer-events': 'auto', bottom: '10px', right: '10px', display: 'grid', gap: '8px' }}>
-      <InfoPanel tile={props.selectedTile} building={props.selectedBuilding} onDemolish={props.onDemolish} />
+      <InfoPanel city={props.city} tile={props.selectedTile} building={props.selectedBuilding} onDemolish={props.onDemolish} />
       <MiniMap city={props.city} camera={props.camera} onPanTo={props.onPanTo} />
     </div>
     <div style={{ ...panelStyle, 'pointer-events': 'auto', top: '10px', left: '10px', display: 'grid', gap: '8px' }}>
