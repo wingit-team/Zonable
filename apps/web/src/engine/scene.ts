@@ -9,6 +9,7 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import { CameraController } from './camera.controller';
 
 type StartEngineResult = { engine: Engine | WebGPUEngine; scene: Scene };
 
@@ -45,6 +46,8 @@ export class SceneSystem {
 
   private readonly shadowGenerator: ShadowGenerator;
 
+  private readonly cameraController: CameraController;
+
   private elapsedMs = 0;
 
   constructor(scene: Scene, canvas: HTMLCanvasElement) {
@@ -58,6 +61,7 @@ export class SceneSystem {
     this.camera.upperRadiusLimit = 220;
     this.camera.panningSensibility = 70;
     this.camera.attachControl(canvas, true);
+    this.cameraController = new CameraController(this.camera, scene);
 
     this.hemiLight = new HemisphericLight('hemi-light', new Vector3(0, 1, 0), scene);
     this.hemiLight.intensity = 0.4;
@@ -73,10 +77,11 @@ export class SceneSystem {
   }
 
   async init(): Promise<void> {
-    return Promise.resolve();
+    await this.cameraController.init();
   }
 
   update(dt: number): void {
+    this.cameraController.update(dt);
     this.elapsedMs += dt;
     const dayPhase = (this.elapsedMs % (24 * 60 * 1000)) / (24 * 60 * 1000);
     const sunAngle = dayPhase * Math.PI * 2;
@@ -91,7 +96,11 @@ export class SceneSystem {
   }
 
   panToWorld(x: number, z: number): void {
-    this.camera.setTarget(new Vector3(x, 0, z));
+    this.cameraController.panToWorld(x, z);
+  }
+
+  resetCamera(): void {
+    this.cameraController.resetView();
   }
 
   getShadowGenerator(): ShadowGenerator {
