@@ -61,7 +61,7 @@ export class SceneSystem {
     this.camera.upperRadiusLimit = 220;
     this.camera.panningSensibility = 70;
     this.camera.attachControl(canvas, true);
-    this.cameraController = new CameraController(this.camera, scene);
+    this.cameraController = new CameraController(this.camera);
 
     this.hemiLight = new HemisphericLight('hemi-light', new Vector3(0, 1, 0), scene);
     this.hemiLight.intensity = 0.4;

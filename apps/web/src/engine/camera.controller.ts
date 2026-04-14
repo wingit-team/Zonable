@@ -1,9 +1,5 @@
-import { KeyboardEventTypes } from '@babylonjs/core/Events/keyboardEvents';
-import type { Observer } from '@babylonjs/core/Misc/observable';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
-import type { KeyboardInfo } from '@babylonjs/core/Events/keyboardEvents';
-import type { Scene } from '@babylonjs/core/scene';
 
 type CameraKey = 'forward' | 'backward' | 'left' | 'right' | 'rotateLeft' | 'rotateRight' | 'zoomIn' | 'zoomOut';
 
@@ -28,34 +24,40 @@ const KEY_MAP: Record<string, CameraKey> = {
 export class CameraController {
   private readonly camera: ArcRotateCamera;
 
-  private readonly scene: Scene;
-
-  private keyObserver: Observer<KeyboardInfo> | null = null;
-
   private readonly activeKeys = new Set<CameraKey>();
 
-  constructor(camera: ArcRotateCamera, scene: Scene) {
+  private readonly onKeydown = (event: KeyboardEvent): void => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === 'h') {
+      this.resetView();
+      return;
+    }
+    const mapped = KEY_MAP[key];
+    if (!mapped) {
+      return;
+    }
+    this.activeKeys.add(mapped);
+    event.preventDefault();
+  };
+
+  private readonly onKeyup = (event: KeyboardEvent): void => {
+    const mapped = KEY_MAP[event.key.toLowerCase()];
+    if (!mapped) {
+      return;
+    }
+    this.activeKeys.delete(mapped);
+  };
+
+  constructor(camera: ArcRotateCamera) {
     this.camera = camera;
-    this.scene = scene;
   }
 
   async init(): Promise<void> {
-    this.keyObserver = this.scene.onKeyboardObservable.add((info) => {
-      const mapped = KEY_MAP[info.event.key.toLowerCase()];
-      if (!mapped) {
-        if (info.type === KeyboardEventTypes.KEYDOWN && info.event.key.toLowerCase() === 'h') {
-          this.resetView();
-        }
-        return;
-      }
-
-      if (info.type === KeyboardEventTypes.KEYDOWN) {
-        this.activeKeys.add(mapped);
-      }
-      if (info.type === KeyboardEventTypes.KEYUP) {
-        this.activeKeys.delete(mapped);
-      }
-    });
+    window.addEventListener('keydown', this.onKeydown);
+    window.addEventListener('keyup', this.onKeyup);
 
     window.addEventListener('blur', () => {
       this.activeKeys.clear();
