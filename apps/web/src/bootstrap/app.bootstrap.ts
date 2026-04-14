@@ -18,6 +18,7 @@ import { ZoneTool } from '../tools/zone';
 import type { CityState } from '../types';
 import { App } from '../ui/App';
 import { createCanvas, pickTile, spawnWorker } from './helpers';
+import { setupRenderBridge } from './render.bridge';
 
 export const bootstrapApp = async (): Promise<void> => {
   const saveAdapter = createSaveAdapter();
@@ -54,17 +55,7 @@ export const bootstrapApp = async (): Promise<void> => {
     terrainTool.init()
   ]);
 
-  window.addEventListener(GRID_EVENTS.zoneChanged, (event) => {
-    terrainSystem.onZoneChanged((event as CustomEvent<{ tileId: string; zone: 'none' | 'residential' | 'commercial' | 'industrial' }>).detail);
-  });
-  window.addEventListener(GRID_EVENTS.elevationChanged, (event) => {
-    terrainSystem.onElevationChanged((event as CustomEvent<{ tileId: string; elevation: number }>).detail);
-  });
-
   let roadChangesSinceLastSave = 0;
-  window.addEventListener(GRID_EVENTS.roadChanged, () => {
-    roadChangesSinceLastSave += 1;
-  });
 
   const economyWorker = spawnWorker<{ budget: CityState['budget']; city: CityState }, { budget: CityState['budget']; happinessDelta: Record<'residential' | 'commercial' | 'industrial', number> } | null>(new URL('../simulation/workers/economy.worker.ts', import.meta.url));
   const trafficWorker = spawnWorker<{ adjacency: Record<string, string[]>; citizenCounts: Record<string, number> }, Record<string, number>>(new URL('../simulation/workers/traffic.worker.ts', import.meta.url));
@@ -81,6 +72,19 @@ export const bootstrapApp = async (): Promise<void> => {
   const [simulationSpeed, setSimulationSpeed] = createSignal<0 | 1 | 2 | 3>(1);
   const [audioVolume, setAudioVolume] = createSignal(0.5);
   const [selectedTileId, setSelectedTileId] = createSignal<string | null>(null);
+
+  setupRenderBridge(grid, terrainSystem, rendererSystem, (next) => setCity(next));
+  window.addEventListener(GRID_EVENTS.roadChanged, () => {
+    roadChangesSinceLastSave += 1;
+  });
+
+  if (Object.keys(grid.getState().buildings).length === 0) {
+    for (let z = 72; z < 75; z += 1) {
+      for (let x = 72; x < 75; x += 1) {
+        grid.setZone(x, z, 'residential');
+      }
+    }
+  }
 
   let pendingRoadStart: string | null = null;
   const persist = async (name: string): Promise<void> => {
