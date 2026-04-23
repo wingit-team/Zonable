@@ -100,7 +100,7 @@ impl PyVec3 {
         Self { inner: -self.inner }
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         format!("Vec3({:.3}, {:.3}, {:.3})", self.inner.x, self.inner.y, self.inner.z)
     }
 
@@ -171,7 +171,7 @@ impl PyQuat {
         Self { inner: self.inner * other.inner }
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         format!("Quat({:.3}, {:.3}, {:.3}, {:.3})",
             self.inner.x, self.inner.y, self.inner.z, self.inner.w)
     }
@@ -217,7 +217,7 @@ impl PyColor {
     #[getter] pub fn b(&self) -> f32 { self.b }
     #[getter] pub fn a(&self) -> f32 { self.a }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         format!("Color({:.2}, {:.2}, {:.2}, {:.2})", self.r, self.g, self.b, self.a)
     }
 }

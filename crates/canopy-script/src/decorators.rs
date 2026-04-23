@@ -30,7 +30,7 @@ use pyo3::types::PyDict;
 ///
 /// Returns a decorator (function → function) so it can be used as `@on_event(EarthquakeEvent)`.
 #[pyfunction]
-pub fn on_event(py: Python<'_>, event_type: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+pub fn on_event(py: Python<'_>, event_type: &PyAny) -> PyResult<PyObject> {
     let event_type_name: String = event_type.getattr("__name__")?.extract()?;
     let registry = get_or_create_registry(py)?;
 
@@ -41,15 +41,15 @@ pub fn on_event(py: Python<'_>, event_type: &Bound<'_, PyAny>) -> PyResult<PyObj
         None,
         move |args, _kwargs| {
             let py = args.py();
-            let func: &Bound<'_, PyAny> = args.get_item(0)?;
-            let handlers: &Bound<'_, PyAny> = registry
-                .bind(py)
+            let func: &PyAny = args.get_item(0)?;
+            let handlers: &PyAny = registry
+                .as_ref(py)
                 .getattr("event_handlers")?;
             let entry = PyDict::new(py);
             entry.set_item("event_type", event_type_name.clone())?;
             entry.set_item("func", func)?;
             handlers.call_method1("append", (entry,))?;
-            Ok(func.clone().into_py(py))
+            Ok::<_, pyo3::PyErr>(func.clone().into_py(py))
         },
     )?;
 
@@ -63,14 +63,14 @@ pub fn on_event(py: Python<'_>, event_type: &Bound<'_, PyAny>) -> PyResult<PyObj
 #[pyo3(signature = (func_or_rate=None, *, rate_hz=0))]
 pub fn on_tick(
     py: Python<'_>,
-    func_or_rate: Option<&Bound<'_, PyAny>>,
+    func_or_rate: Option<&PyAny>,
     rate_hz: u32,
 ) -> PyResult<PyObject> {
     let registry = get_or_create_registry(py)?;
 
     if let Some(func) = func_or_rate {
         // Bare @on_tick (no args)
-        register_tick_handler(py, &registry.bind(py), func, 0)?;
+        register_tick_handler(py, &registry.as_ref(py), func, 0)?;
         Ok(func.clone().into_py(py))
     } else {
         // @on_tick(rate_hz=4) — return a decorator
@@ -80,10 +80,10 @@ pub fn on_tick(
             None,
             move |args, _kwargs| {
                 let py = args.py();
-                let func: &Bound<'_, PyAny> = args.get_item(0)?;
+                let func: &PyAny = args.get_item(0)?;
                 let reg = get_or_create_registry(py)?;
-                register_tick_handler(py, &reg.bind(py), func, rate_hz)?;
-                Ok(func.clone().into_py(py))
+                register_tick_handler(py, &reg.as_ref(py), func, rate_hz)?;
+                Ok::<_, pyo3::PyErr>(func.clone().into_py(py))
             },
         )?;
         Ok(decorator.into_py(py))
@@ -92,8 +92,8 @@ pub fn on_tick(
 
 fn register_tick_handler(
     py: Python<'_>,
-    registry: &Bound<'_, PyAny>,
-    func: &Bound<'_, PyAny>,
+    registry: &PyAny,
+    func: &PyAny,
     rate_hz: u32,
 ) -> PyResult<()> {
     let handlers = registry.getattr("tick_handlers")?;
@@ -108,9 +108,9 @@ fn register_tick_handler(
 
 /// `@on_init` — register a function called once after all scripts are loaded.
 #[pyfunction]
-pub fn on_init(py: Python<'_>, func: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+pub fn on_init(py: Python<'_>, func: &PyAny) -> PyResult<PyObject> {
     let registry = get_or_create_registry(py)?;
-    let handlers = registry.bind(py).getattr("init_handlers")?;
+    let handlers = registry.as_ref(py).getattr("init_handlers")?;
     let entry = PyDict::new(py);
     entry.set_item("func", func)?;
     handlers.call_method1("append", (entry,))?;

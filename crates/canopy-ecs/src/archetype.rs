@@ -127,10 +127,10 @@ impl ArchetypeRegistry {
 
     /// Iterate over all archetypes whose signature is a superset of `required`.
     /// This is the core of query filtering — O(archetypes) which is typically small.
-    pub fn matching_archetypes(
-        &self,
-        required: &[ComponentId],
-    ) -> impl Iterator<Item = &Archetype> {
+    pub fn matching_archetypes<'a>(
+        &'a self,
+        required: &'a [ComponentId],
+    ) -> impl Iterator<Item = &'a Archetype> + 'a {
         self.archetypes
             .iter()
             .filter(|arch| required.iter().all(|req| arch.signature.contains(*req)))

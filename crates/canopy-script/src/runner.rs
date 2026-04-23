@@ -91,7 +91,7 @@ impl ScriptRunner {
 
         // Add scripts_dir to sys.path
         let sys = py.import("sys")?;
-        let sys_path: &Bound<'_, PyList> = sys.getattr("path")?.downcast()?;
+        let sys_path: &PyList = sys.getattr("path")?.downcast()?;
         sys_path.insert(0, scripts_dir.to_str().unwrap_or("."))?;
 
         info!("ScriptRunner: loading scripts from {:?}", scripts_dir);
@@ -204,7 +204,7 @@ impl ScriptRunner {
                 if !should_run { continue; }
 
                 let result = system.instance
-                    .bind(py)
+                    .as_ref(py)
                     .call_method1("on_tick", (dt,));
 
                 if let Err(e) = result {

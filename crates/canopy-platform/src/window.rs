@@ -74,7 +74,7 @@ impl Default for WindowConfig {
 pub struct PlatformWindow {
     pub config: WindowConfig,
     /// `None` in headless mode.
-    pub inner: Option<Window>,
+    pub inner: Option<std::sync::Arc<Window>>,
     pub input: InputState,
     /// Accumulated events since last `poll_events` call.
     pending_events: Vec<CanopyEvent>,
@@ -106,7 +106,7 @@ impl PlatformWindow {
                 "Platform: window created '{}' {}×{}",
                 config.title, config.width, config.height
             );
-            Some(window)
+            Some(std::sync::Arc::new(window))
         };
 
         let platform = Self {
@@ -124,24 +124,23 @@ impl PlatformWindow {
     ///
     /// This is called inside `EventLoop::run`'s closure. The results are pushed
     /// into `pending_events` which `poll_events` drains.
-    pub fn handle_winit_event(&mut self, event: Event<()>) -> Option<ControlFlow> {
+    pub fn handle_winit_event(&mut self, event: Event<()>) -> bool {
         match event {
             Event::WindowEvent { event, .. } => {
                 self.translate_window_event(event)
             }
             Event::AboutToWait => {
-                // All events for this frame have been processed — signal engine tick
-                Some(ControlFlow::Poll)
+                false
             }
-            _ => None,
+            _ => false,
         }
     }
 
-    fn translate_window_event(&mut self, event: WindowEvent) -> Option<ControlFlow> {
+    fn translate_window_event(&mut self, event: WindowEvent) -> bool {
         match event {
             WindowEvent::CloseRequested => {
                 self.pending_events.push(CanopyEvent::WindowCloseRequested);
-                Some(ControlFlow::Exit)
+                true
             }
             WindowEvent::Resized(size) => {
                 self.logical_size = (size.width, size.height);
@@ -149,11 +148,11 @@ impl PlatformWindow {
                     width: size.width,
                     height: size.height,
                 });
-                None
+                false
             }
             WindowEvent::Focused(focused) => {
                 self.pending_events.push(CanopyEvent::WindowFocusChanged { focused });
-                None
+                false
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 // winit 0.29 uses `event.physical_key` and `event.logical_key`
@@ -170,13 +169,13 @@ impl PlatformWindow {
                         self.pending_events.push(CanopyEvent::KeyReleased { key, modifiers });
                     }
                 }
-                None
+                false
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Vec2::new(position.x as f32, position.y as f32);
                 self.input.set_mouse_position(pos);
                 self.pending_events.push(CanopyEvent::MouseMoved { position: pos });
-                None
+                false
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let btn = translate_mouse_button(button);
@@ -190,7 +189,7 @@ impl PlatformWindow {
                         self.pending_events.push(CanopyEvent::MouseButtonReleased { button: btn });
                     }
                 }
-                None
+                false
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
@@ -199,9 +198,9 @@ impl PlatformWindow {
                 };
                 self.input.accumulate_scroll(scroll);
                 self.pending_events.push(CanopyEvent::MouseScrolled { delta: scroll });
-                None
+                false
             }
-            _ => None,
+            _ => false,
         }
     }
 
@@ -213,8 +212,8 @@ impl PlatformWindow {
     }
 
     /// Raw window handle for wgpu surface creation.
-    pub fn raw_window_handle(&self) -> Option<&Window> {
-        self.inner.as_ref()
+    pub fn raw_window_handle(&self) -> Option<std::sync::Arc<Window>> {
+        self.inner.clone()
     }
 }
 

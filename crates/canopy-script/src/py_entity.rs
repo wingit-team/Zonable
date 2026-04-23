@@ -1,8 +1,8 @@
 //! Python Entity wrapper.
 
 use canopy_ecs::entity::Entity;
+use canopy_ecs::slotmap::{Key, KeyData};
 use pyo3::prelude::*;
-use slotmap::KeyData;
 
 /// Python-visible entity handle.
 ///
@@ -21,13 +21,11 @@ pub struct PyEntity {
 
 impl PyEntity {
     pub fn from_entity(e: Entity) -> Self {
-        // slotmap KeyData gives us the raw bits
-        let data: KeyData = e.into();
-        Self { raw: data.as_ffi() }
+        Self { raw: e.data().as_ffi() }
     }
 
     pub fn to_entity(&self) -> Entity {
-        Entity::from(KeyData::from_ffi(self.raw))
+        Entity::from(canopy_ecs::slotmap::KeyData::from_ffi(self.raw))
     }
 }
 

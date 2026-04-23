@@ -143,12 +143,10 @@ impl CanopyApp {
             use winit::event_loop::ControlFlow;
             target.set_control_flow(ControlFlow::Poll);
 
-            if let Some(flow) = platform.handle_winit_event(event) {
-                if flow == ControlFlow::Exit {
-                    info!("Shutdown requested");
-                    target.exit();
-                    return;
-                }
+            if platform.handle_winit_event(event) {
+                info!("Shutdown requested");
+                target.exit();
+                return;
             }
 
             // Process accumulated events (filled by handle_winit_event)

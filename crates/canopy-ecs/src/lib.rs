@@ -37,6 +37,8 @@
 //! }
 //! ```
 
+pub use slotmap;
+
 pub mod archetype;
 pub mod command;
 pub mod component;
@@ -57,7 +59,7 @@ pub mod prelude {
     pub use super::command::EntityCommandBuffer;
     pub use super::component::Component;
     pub use super::entity::Entity;
-    pub use super::query::{Access, Query, QueryIter};
+    pub use super::query::{Query, QueryIter};
     pub use super::system::{IntoSystem, System, SystemStage};
     pub use super::world::World;
     // Re-export glam so game code doesn't need a separate dep

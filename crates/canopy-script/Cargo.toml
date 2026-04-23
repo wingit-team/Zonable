@@ -24,6 +24,7 @@ crossbeam-channel = { workspace = true }
 ahash = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
+slotmap.workspace = true
 
 [features]
 default = ["pyo3/extension-module"]

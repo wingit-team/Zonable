@@ -92,7 +92,7 @@ impl PyWorld {
     pub fn add(&self, py: Python<'_>, entity: &PyEntity, component: PyObject) -> PyResult<()> {
         // Extract the component class name for the type registry
         let type_name: String = component
-            .bind(py)
+            .as_ref(py)
             .get_type()
             .name()?
             .to_string();
@@ -105,7 +105,7 @@ impl PyWorld {
             // Phase 2: Built-in components (Transform, Mesh) will use native Rust types
             // and only user-defined Python components will use this path.
             if let Some(store) = w.get_mut::<PythonComponentStore>(canopy_ecs::entity::Entity::from(
-                slotmap::KeyData::from_ffi(entity.raw)
+                canopy_ecs::slotmap::KeyData::from_ffi(entity.raw)
             )) {
                 // Store not needed here — we directly insert
             }
@@ -125,7 +125,7 @@ impl PyWorld {
     /// transform = world.get(entity, Transform)
     /// print(transform.position)
     /// ```
-    pub fn get(&self, py: Python<'_>, entity: &PyEntity, component_type: &Bound<'_, PyAny>) -> PyResult<Option<PyObject>> {
+    pub fn get(&self, py: Python<'_>, entity: &PyEntity, component_type: &PyAny) -> PyResult<Option<PyObject>> {
         let type_name: String = component_type.get_type().name()?.to_string();
         // In Phase 1: look for the component by type name in PythonComponent storage
         // Phase 2: route built-in types to native storage

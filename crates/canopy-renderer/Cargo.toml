@@ -8,6 +8,8 @@ license = "LicenseRef-Proprietary"
 [dependencies]
 canopy-ecs    = { path = "../canopy-ecs" }
 canopy-assets = { path = "../canopy-assets" }
+canopy-platform = { path = "../canopy-platform" }
+canopy-core = { path = "../canopy-core" }
 
 wgpu  = { workspace = true }
 naga  = { workspace = true }

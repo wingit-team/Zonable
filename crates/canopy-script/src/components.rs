@@ -163,7 +163,7 @@ impl PyZone {
 // CanopyApp Python entry
 // ---------------------------------------------------------------------------
 
-pub fn register_components(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn register_components(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyTransform>()?;
     m.add_class::<PyMeshRef>()?;
     m.add_class::<PyBuildingData>()?;

@@ -30,6 +30,8 @@ pub struct World {
     /// Per-type erased storage. Keyed by `TypeId` of the component.
     pub(crate) storages: AHashMap<TypeId, Box<dyn AnyStorage>>,
     pub(crate) archetypes: ArchetypeRegistry,
+    /// Type-erased global resources (e.g. RenderContext, InputState)
+    pub(crate) resources: AHashMap<TypeId, Box<dyn std::any::Any + Send + Sync>>,
 }
 
 impl World {
@@ -38,6 +40,7 @@ impl World {
             allocator: EntityAllocator::new(),
             storages: AHashMap::new(),
             archetypes: ArchetypeRegistry::new(),
+            resources: AHashMap::new(),
         }
     }
 
@@ -146,6 +149,29 @@ impl World {
     #[inline]
     pub fn has<T: Component>(&self, entity: Entity) -> bool {
         self.storage::<T>().map_or(false, |s| s.contains(entity))
+    }
+
+    // -----------------------------------------------------------------------
+    // Resources (Global state)
+    // -----------------------------------------------------------------------
+
+    /// Insert a global resource.
+    pub fn insert_resource<R: Send + Sync + 'static>(&mut self, resource: R) {
+        self.resources.insert(TypeId::of::<R>(), Box::new(resource));
+    }
+
+    /// Get a shared reference to a resource.
+    pub fn get_resource<R: 'static>(&self) -> Option<&R> {
+        self.resources
+            .get(&TypeId::of::<R>())
+            .and_then(|b| b.downcast_ref::<R>())
+    }
+
+    /// Get a mutable reference to a resource.
+    pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
+        self.resources
+            .get_mut(&TypeId::of::<R>())
+            .and_then(|b| b.downcast_mut::<R>())
     }
 
     // -----------------------------------------------------------------------

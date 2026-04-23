@@ -59,7 +59,7 @@ use py_world::PyWorld;
 ///
 /// Registered when Python does `import canopy`.
 #[pymodule]
-fn canopy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn canopy(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // Core types
     m.add_class::<PyCanopyApp>()?;
     m.add_class::<PyEntity>()?;

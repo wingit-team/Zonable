@@ -65,7 +65,7 @@ hound = "3.5"
 rapier3d = { version = "0.21", features = ["simd-nightly"] }
 
 # Python bindings
-pyo3 = { version = "0.21", features = ["extension-module", "abi3-py311"] }
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py311"] }
 
 # Noise for terrain generation
 noise = "0.9"
