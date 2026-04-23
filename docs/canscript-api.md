@@ -74,13 +74,15 @@ Called once after all scripts are loaded but before the main loop starts.
 ## Submodule: `canopy.components`
 
 ### `Transform`
+The core spatial component. Extracted by the renderer for positioning.
 - `position: Vec3`
 - `rotation: Quat`
 - `scale: Vec3`
 
 ### `Mesh`
+Defines the visual representation of an entity.
 - `asset: str` (Path to `.canasset`)
-- `lod_bias: float`
+- `lod_bias: float` — Adjusts LoD selection threshold (default: 1.0)
 - `cast_shadow: bool`
 - `receive_shadow: bool`
 

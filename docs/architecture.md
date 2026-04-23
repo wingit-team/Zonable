@@ -27,7 +27,8 @@ graph TD
     World --> Assets
     
     Renderer[canopy-renderer] --> Assets
-    Renderer --> ECS
+    Renderer[canopy-renderer] --> ECS
+    Renderer --> Platform
     
     Physics[canopy-physics] --> ECS
 ```
@@ -50,7 +51,14 @@ Uses PyO3 to expose Rust types to Python.
 - **Flow-Based Traffic**: Uses fluid dynamics principles and BPR (Bureau of Public Roads) functions instead of individual agent pathfinding, allowing for hundreds of thousands of vehicles.
 - **Statistical Bucketing**: Entities outside the "Active Simulation Radius" are collapsed into statistical pools (StatPools) to maintain global economic causality without individual agent overhead.
 
-### 4. canopy-world (Chunked Universe)
+### 4. canopy-renderer (The Visuals)
+A hybrid deferred/forward renderer built on `wgpu`.
+- **Hybrid Pipeline**: Uses a G-Buffer for opaque geometry (deferred) and a forward pass for transparents and UI.
+- **GPU Resource Management**: Implements an LRU-cached GPU memory manager with a hard 2GB limit (configurable).
+- **LoD System**: Automatic level-of-detail switching based on screen-space coverage and distance.
+- **Frustum Culling**: Multi-threaded culling of entity archetypes against the camera frustum.
+
+### 5. canopy-world (Chunked Universe)
 - **Predictive Streaming**: Uses camera velocity to pre-load chunks.
 - **Terrain**: Noise-based Fbm Perlin terrain generation integrated into the streaming pipeline.
 - **Zone Map**: A sparse spatial grid for city zoning, enabling fast radius queries for disaster impact and economic influence.
@@ -61,5 +69,6 @@ Uses PyO3 to expose Rust types to Python.
 2.  **Sim-Tick (Heartbeat)**: If the heartbeat timer (e.g., 4Hz) fires, simulation systems (Economics, Population, Long-term logic) run.
 3.  **Update**: Main game logic systems run. `ScriptRunner` executes Python systems here.
 4.  **Post-Update**: Transform hierarchies are updated; camera culling and LoD selection occurs.
-5.  **Render**: `canopy-renderer` submits draw calls to the GPU via `wgpu`.
-6.  **Post-Render**: Profiling data is flushed; frame-end cleanup.
+5.  **Render Extraction**: Data is "extracted" from the ECS World into renderer-local buffers to minimize GIL contention and allow parallel draw call submission.
+6.  **Render**: `canopy-renderer` submits draw calls to the GPU via `wgpu`.
+7.  **Post-Render**: Profiling data is flushed; frame-end cleanup.

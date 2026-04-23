@@ -30,7 +30,7 @@ canopy-engine/
 │   └── canopy-pipeline    # Python CLI: LoD generation, texture compression, asset packing
 ├── games/
 │   └── zonable            # City builder game scripts
-└── docs/                  # [Architecture](docs/architecture.md), [Python API](docs/canscript-api.md), [Asset Format](docs/canasset-format.md)
+└── docs/                  # [Architecture](docs/architecture.md), [Renderer](docs/renderer.md), [Python API](docs/canscript-api.md), [Asset Format](docs/canasset-format.md)
 ```
 
 ## Crate Dependency Graph
@@ -111,6 +111,13 @@ maturin develop
 cd tools/canopy-pipeline
 pip install -e .
 canopy-pipeline --help
+```
+
+### macOS Build Notes
+On Apple Silicon (M1/M2/M3), you must ensure that the linker uses `dynamic_lookup` for PyO3 symbols. This is handled automatically by the `.cargo/config.toml` provided in the repository:
+```toml
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
 ```
 
 ## Key Design Decisions
