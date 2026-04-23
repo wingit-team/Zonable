@@ -1,0 +1,19 @@
+[package]
+name = "canopy-core"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — Core app loop, plugin system, engine lifecycle"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-ecs      = { path = "../canopy-ecs" }
+canopy-platform = { path = "../canopy-platform" }
+canopy-assets   = { path = "../canopy-assets" }
+
+glam = { workspace = true }
+parking_lot = { workspace = true }
+crossbeam-channel = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }

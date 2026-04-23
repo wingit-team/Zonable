@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/canopy-core",
+    "crates/canopy-renderer",
+    "crates/canopy-ecs",
+    "crates/canopy-sim",
+    "crates/canopy-world",
+    "crates/canopy-assets",
+    "crates/canopy-audio",
+    "crates/canopy-physics",
+    "crates/canopy-script",
+    "crates/canopy-platform",
+]
+
+# Workspace-level dependency declarations so individual crates don't pin
+# diverging versions. Each crate opts in with `dependency.workspace = true`.
+[workspace.dependencies]
+# Math — glam is columnar SIMD-friendly, used engine-wide
+glam = { version = "0.29", features = ["bytemuck"] }
+
+# ECS / core parallelism
+parking_lot = "0.12"
+crossbeam = "0.8"
+crossbeam-channel = "0.5"
+rayon = "1.10"
+
+# Async runtime — tokio for asset streaming, not for the game loop
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "sync", "macros"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "2.0.0-rc.3"   # Used for .canasset binary packing
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Collections / utilities
+ahash = "0.8"             # Fast hashing for component TypeId maps
+slotmap = "1.0"           # Slot map for entity allocator (generation + index)
+smallvec = "1.13"
+bitflags = "2"
+bytemuck = { version = "1", features = ["derive"] }
+
+# Platform / windowing
+winit = "0.29"
+raw-window-handle = "0.6"
+
+# Renderer
+wgpu = "22"
+naga = { version = "22", features = ["wgsl-in"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# Audio
+cpal = "0.15"
+hound = "3.5"
+
+# Physics (Rapier 3D)
+rapier3d = { version = "0.21", features = ["simd-nightly"] }
+
+# Python bindings
+pyo3 = { version = "0.21", features = ["extension-module", "abi3-py311"] }
+
+# Noise for terrain generation
+noise = "0.9"
+
+# CLI / tools (canopy-pipeline is Python, but Rust tools if needed later)
+clap = { version = "4", features = ["derive"] }
+
+[profile.dev]
+opt-level = 1              # Avoid debug builds being unusably slow for sim
+overflow-checks = true
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2              # External deps always optimized even in dev

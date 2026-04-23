@@ -1,0 +1,30 @@
+[project]
+name = "canopy-pipeline"
+version = "0.1.0"
+description = "Canopy Engine asset pipeline CLI tools"
+readme = "README.md"
+license = "LicenseRef-Proprietary"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "tqdm>=4.65",
+    "rich>=13.0",
+    "structlog>=23.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "black", "ruff", "mypy"]
+meshopt = ["meshoptimizer>=0.0.2"]  # PyPI meshoptimizer bindings (Phase 2)
+
+[project.scripts]
+canopy-pipeline = "canopy_pipeline.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false

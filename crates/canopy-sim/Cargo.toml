@@ -1,0 +1,20 @@
+[package]
+name = "canopy-sim"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — Simulation: agents, traffic flow, economics"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-ecs = { path = "../canopy-ecs" }
+
+glam = { workspace = true }
+parking_lot = { workspace = true }
+crossbeam = { workspace = true }
+crossbeam-channel = { workspace = true }
+rayon = { workspace = true }
+ahash = { workspace = true }
+smallvec = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+noise = { workspace = true }

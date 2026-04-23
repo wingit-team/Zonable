@@ -1,0 +1,16 @@
+[package]
+name = "canopy-audio"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — Audio system"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-assets = { path = "../canopy-assets" }
+
+cpal  = { workspace = true }
+hound = { workspace = true }
+glam  = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "canopy-physics"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — Physics integration (Rapier 3D)"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-ecs = { path = "../canopy-ecs" }
+
+rapier3d = { workspace = true }
+glam     = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

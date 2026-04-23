@@ -1,0 +1,45 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock   # keep for applications; ignore for libraries — we're a library workspace
+*.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Engine artifacts
+*.canasset.cache
+*.lod_cache
+assets/generated/
+/games/*/cache/
+
+# Build outputs
+/tools/canopy-pipeline/dist/
+/tools/canopy-pipeline/build/
+
+# Secrets
+.env
+.env.local
+*.key

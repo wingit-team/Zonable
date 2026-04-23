@@ -1,0 +1,32 @@
+[package]
+name = "canopy-script"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — PyO3 Python scripting bindings"
+license = "LicenseRef-Proprietary"
+
+# PyO3 requires this for extension modules
+[lib]
+name = "canopy"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+canopy-core    = { path = "../canopy-core" }
+canopy-ecs     = { path = "../canopy-ecs" }
+canopy-assets  = { path = "../canopy-assets" }
+canopy-sim     = { path = "../canopy-sim" }
+canopy-world   = { path = "../canopy-world" }
+
+pyo3 = { workspace = true }
+glam = { workspace = true }
+parking_lot = { workspace = true }
+crossbeam-channel = { workspace = true }
+ahash = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = ["pyo3/extension-module"]
+
+# For linking into a Rust binary that embeds Python (not building as .so)
+embed = []

@@ -1,0 +1,18 @@
+[package]
+name = "canopy-world"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — World: terrain, chunks, procedural generation"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-ecs    = { path = "../canopy-ecs" }
+canopy-assets = { path = "../canopy-assets" }
+
+glam = { workspace = true }
+noise = { workspace = true }
+ahash = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+smallvec = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "canopy-platform"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — Platform abstraction: windowing, input, OS events"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+winit = { workspace = true }
+raw-window-handle = { workspace = true }
+
+glam = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }

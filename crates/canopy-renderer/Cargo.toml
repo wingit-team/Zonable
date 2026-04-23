@@ -1,0 +1,18 @@
+[package]
+name = "canopy-renderer"
+version = "0.1.0"
+edition = "2021"
+description = "Canopy Engine — wgpu-based renderer"
+license = "LicenseRef-Proprietary"
+
+[dependencies]
+canopy-ecs    = { path = "../canopy-ecs" }
+canopy-assets = { path = "../canopy-assets" }
+
+wgpu  = { workspace = true }
+naga  = { workspace = true }
+glam  = { workspace = true }
+bytemuck = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
