@@ -30,7 +30,7 @@ canopy-engine/
 │   └── canopy-pipeline    # Python CLI: LoD generation, texture compression, asset packing
 ├── games/
 │   └── zonable            # City builder game scripts
-└── docs/
+└── docs/                  # [Architecture](docs/architecture.md), [Python API](docs/canscript-api.md), [Asset Format](docs/canasset-format.md)
 ```
 
 ## Crate Dependency Graph
