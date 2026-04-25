@@ -21,10 +21,10 @@
 //! ```
 
 use crate::py_entity::PyEntity;
-use crate::py_math::PyVec3;
 use canopy_ecs::world::World;
 use pyo3::prelude::*;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// Thread-local storage for the current frame's World pointer.
 /// Set by `ScriptRunner::run_frame` before invoking Python, cleared after.
@@ -87,35 +87,47 @@ impl PyWorld {
     /// Add (or overwrite) a component on an entity.
     ///
     /// The component must be a Python class registered via `register_components`.
-    /// In Phase 1 we accept any Python object and store it as a `PyObject`.
-    /// Phase 2 will use proper Rust component types for built-ins.
-    pub fn add(&self, py: Python<'_>, entity: &PyEntity, component: PyObject) -> PyResult<()> {
-        // Extract the component class name for the type registry
-        let type_name: String = component
-            .as_ref(py)
-            .get_type()
-            .name()?
-            .to_string();
+    /// Components are stored per-entity keyed by Python type name.
+    pub fn add(&self, py: Python<'_>, entity: &PyEntity, py_comp: PyObject) -> PyResult<()> {
+        let entity_id = entity.to_entity();
+
+        // 1. Handle builtin components by extracting native Rust equivalents
+        // We do this BEFORE with_world to avoid borrow issues if possible, though extract is safe.
+        let mut rust_transform = None;
+        let mut rust_mesh = None;
+
+        if let Ok(py_t) = py_comp.extract::<crate::components::PyTransform>(py) {
+            rust_transform = Some(canopy_renderer::Transform {
+                position: py_t.position.inner,
+                rotation: py_t.rotation.inner,
+                scale: py_t.scale.inner,
+            });
+        } else if let Ok(py_m) = py_comp.extract::<crate::components::PyMeshRef>(py) {
+            rust_mesh = Some(canopy_renderer::MeshRef {
+                asset: py_m.asset.clone(),
+            });
+        }
+
+        let type_name = py_comp.as_ref(py).get_type().name()?.to_string();
 
         with_world(|w| {
-            // Store Python components as PyComponentStore entries
-            // This inserts a Box<PyComponentEntry> into a special Python-component storage
-            // that lives on the World as a resource (not a typed component).
-            //
-            // Phase 2: Built-in components (Transform, Mesh) will use native Rust types
-            // and only user-defined Python components will use this path.
-            if let Some(store) = w.get_mut::<PythonComponentStore>(canopy_ecs::entity::Entity::from(
-                canopy_ecs::slotmap::KeyData::from_ffi(entity.raw)
-            )) {
-                // Store not needed here — we directly insert
+            if let Some(t) = rust_transform {
+                w.insert(entity_id, t);
             }
-            // For Phase 1: store as a typed Python component
-            let py_comp = PythonComponent {
-                type_name: type_name.clone(),
-                object: component.clone_ref(py),
-            };
-            w.insert(entity.to_entity(), py_comp);
+            if let Some(m) = rust_mesh {
+                w.insert(entity_id, m);
+            }
+
+            // Keep Python-side components by type so entities can have Transform + Mesh + etc.
+            if let Some(store) = w.get_mut::<PythonComponentStore>(entity_id) {
+                store.components.insert(type_name, py_comp);
+            } else {
+                let mut components = HashMap::new();
+                components.insert(type_name, py_comp);
+                w.insert(entity_id, PythonComponentStore { components });
+            }
         });
+
         Ok(())
     }
 
@@ -126,14 +138,11 @@ impl PyWorld {
     /// print(transform.position)
     /// ```
     pub fn get(&self, py: Python<'_>, entity: &PyEntity, component_type: &PyAny) -> PyResult<Option<PyObject>> {
-        let type_name: String = component_type.get_type().name()?.to_string();
-        // In Phase 1: look for the component by type name in PythonComponent storage
-        // Phase 2: route built-in types to native storage
+        let type_name: String = component_type.getattr("__name__")?.extract()?;
         let result = with_world(|w| {
-            // TODO Phase 2: dispatch to native storage for Transform, Mesh, etc.
-            w.get::<PythonComponent>(entity.to_entity())
-                .filter(|c| c.type_name == type_name)
-                .map(|c| c.object.clone_ref(py))
+            w.get::<PythonComponentStore>(entity.to_entity())
+                .and_then(|store| store.components.get(&type_name))
+                .map(|obj| obj.clone_ref(py))
         });
         Ok(result)
     }
@@ -141,7 +150,16 @@ impl PyWorld {
     /// Remove a component from an entity.
     pub fn remove(&self, entity: &PyEntity, component_type_name: &str) -> PyResult<()> {
         with_world(|w| {
-            w.remove::<PythonComponent>(entity.to_entity());
+            let entity_id = entity.to_entity();
+            let should_remove_store = if let Some(store) = w.get_mut::<PythonComponentStore>(entity_id) {
+                store.components.remove(component_type_name);
+                store.components.is_empty()
+            } else {
+                false
+            };
+            if should_remove_store {
+                w.remove::<PythonComponentStore>(entity_id);
+            }
         });
         Ok(())
     }
@@ -166,21 +184,99 @@ impl PyWorld {
 }
 
 // ---------------------------------------------------------------------------
+// Query API
+// ---------------------------------------------------------------------------
+
+#[pyclass(name = "Query")]
+#[derive(Clone)]
+pub struct PyQuery;
+
+#[pymethods]
+impl PyQuery {
+    #[new]
+    pub fn new() -> Self { Self }
+
+    /// Iterate over entities having all requested components.
+    ///
+    /// ```python
+    /// for entity, (transform, mesh) in query.with_components(Transform, Mesh):
+    ///     pass
+    /// ```
+    #[pyo3(signature = (*args))]
+    pub fn with_components(&self, py: Python<'_>, args: &pyo3::types::PyTuple) -> PyResult<PyObject> {
+        let mut components = Vec::new();
+        for arg in args.iter() {
+            let type_name: String = arg.getattr("__name__")?.extract()?;
+            components.push(type_name);
+        }
+
+        let results = pyo3::types::PyList::empty(py);
+        
+        with_world(|w| {
+            let entities = w.query_filtered(&[
+                canopy_ecs::component::ComponentId::of::<PythonComponentStore>(),
+            ]);
+
+            for entity in entities {
+                let mut entity_components = Vec::new();
+                let mut has_all = true;
+                let Some(store) = w.get::<PythonComponentStore>(entity) else {
+                    continue;
+                };
+                
+                for type_name in &components {
+                    if let Some(py_comp) = store.components.get(type_name) {
+                        entity_components.push(py_comp.clone_ref(py));
+                    } else {
+                        has_all = false;
+                        break;
+                    }
+                }
+                
+                if has_all {
+                    let entity_py = PyEntity::from_entity(entity);
+                    let comps_tuple = pyo3::types::PyTuple::new(py, &entity_components);
+                    let row = pyo3::types::PyTuple::new(py, &[entity_py.into_py(py), comps_tuple.into_py(py)]);
+                    let _ = results.append(row);
+                }
+            }
+        });
+
+        Ok(results.into_py(py))
+    }
+}
+
+/// Helper for ScriptRunner to create a Query object.
+pub fn canopy_script_query() -> PyQuery {
+    PyQuery
+}
+
+// ---------------------------------------------------------------------------
+// System Base Class
+// ---------------------------------------------------------------------------
+
+#[pyclass(name = "System", subclass)]
+pub struct PySystemBase;
+
+#[pymethods]
+impl PySystemBase {
+    #[new]
+    pub fn new() -> Self { Self }
+
+    pub fn on_tick(&self, _dt: f64, _query: PyQuery) -> PyResult<()> {
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Python component storage (Phase 1 — stores Python objects in the ECS)
 // ---------------------------------------------------------------------------
 
-/// A Python component stored in the ECS. Each Python `add(entity, obj)` call
-/// creates one of these. Phase 2 will have per-type storage instead.
-#[derive(Clone)]
-pub struct PythonComponent {
-    pub type_name: String,
-    pub object: PyObject,
-}
-
-/// Marker type: entities can have multiple Python components of different types.
-/// Phase 1 stores only the last-added component per entity (one PythonComponent slot).
-/// Phase 2 will use a per-type-name HashMap keyed by type_name.
+/// Per-entity Python component storage.
+///
+/// Keys are Python class names (e.g. `Transform`, `Mesh`) and values are the
+/// live Python objects for script-side mutation/query.
+#[derive(Clone, Default)]
 pub struct PythonComponentStore {
-    // Map from type_name → PyObject
-    components: std::collections::HashMap<String, PyObject>,
+    pub components: HashMap<String, PyObject>,
 }

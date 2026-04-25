@@ -34,7 +34,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyString};
 use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
-use crate::py_world::{clear_active_world, set_active_world};
+use crate::py_world::{clear_active_world, set_active_world, canopy_script_query};
 
 /// A registered Python system.
 pub struct PySystem {
@@ -145,13 +145,13 @@ impl ScriptRunner {
             Err(_) => return Ok(()), // No registry yet
         };
 
-        // Sync systems
+        // 1. Sync class-based systems
         if let Ok(systems) = registry.getattr("systems") {
             for item in systems.iter()? {
                 let item = item?;
-                let name: String = item.getattr("name")?.extract()?;
-                let instance = item.getattr("instance")?.into();
-                let tick_rate: u32 = item.getattr("tick_rate_hz")?.extract().unwrap_or(0);
+                let name: String = item.get_item("name")?.extract()?;
+                let instance = item.get_item("instance")?.into();
+                let tick_rate: u32 = item.get_item("tick_rate_hz")?.extract().unwrap_or(0);
                 info!("ScriptRunner: registered system '{}'", name);
                 self.systems.push(PySystem {
                     name,
@@ -162,16 +162,49 @@ impl ScriptRunner {
             }
         }
 
-        // Sync event handlers
+        // 2. Sync @on_tick functions (wrap them as systems)
+        if let Ok(handlers) = registry.getattr("tick_handlers") {
+            for item in handlers.iter()? {
+                let item = item?;
+                let name: String = item.get_item("name")?.extract()?;
+                let func: PyObject = item.get_item("func")?.into();
+                let tick_rate: u32 = item.get_item("rate_hz")?.extract().unwrap_or(0);
+                
+                info!("ScriptRunner: registered @on_tick function '{}'", name);
+                
+                // Wrap the function in an object that has an 'on_tick' method
+                let types = py.import("types")?;
+                let wrapper = types.getattr("SimpleNamespace")?.call0()?;
+                wrapper.setattr("on_tick", func)?;
+
+                self.systems.push(PySystem {
+                    name,
+                    instance: wrapper.into(),
+                    tick_rate_hz: tick_rate,
+                    ticks_since_last_run: 0,
+                });
+            }
+        }
+
+        // 3. Sync event handlers
         if let Ok(handlers) = registry.getattr("event_handlers") {
             for item in handlers.iter()? {
                 let item = item?;
-                let event_type: String = item.getattr("event_type")?. extract()?;
-                let func: PyObject = item.getattr("func")?.into();
+                let event_type: String = item.get_item("event_type")?.extract()?;
+                let func: PyObject = item.get_item("func")?.into();
                 self.event_handlers.push(PyEventHandler {
                     event_type_name: event_type,
                     func,
                 });
+            }
+        }
+
+        // 4. Sync @on_init handlers
+        if let Ok(handlers) = registry.getattr("init_handlers") {
+            for item in handlers.iter()? {
+                let item = item?;
+                let func: PyObject = item.get_item("func")?.into();
+                self.init_handlers.push(PyInitHandler { func });
             }
         }
 
@@ -181,9 +214,14 @@ impl ScriptRunner {
     /// Run all registered Python systems for this frame.
     ///
     /// Called by the ECS SystemScheduler as part of the `Update` stage.
-    pub fn run_frame(&mut self, world: &mut World, dt: f64, frame_index: u64) {
+    pub fn run_frame(&mut self, world: &mut World, dt: f64, _frame_index: u64) {
         // Set the thread-local world pointer so Python can call world.*
         unsafe { set_active_world(world as *mut World); }
+
+        // Set the thread-local input state if available
+        if let Some(input) = world.get_resource::<canopy_platform::InputState>() {
+            crate::py_input::set_active_input(input.clone());
+        }
 
         Python::with_gil(|py| {
             for system in &mut self.systems {
@@ -203,18 +241,49 @@ impl ScriptRunner {
 
                 if !should_run { continue; }
 
+                // Collect query object (Phase 2 will pre-collect data)
+                let query = canopy_script_query();
+
                 let result = system.instance
                     .as_ref(py)
-                    .call_method1("on_tick", (dt,));
+                    .call_method1("on_tick", (dt, query));
 
                 if let Err(e) = result {
                     error!("ScriptRunner: error in system '{}': {}", system.name, e);
                     e.print(py);
                 }
             }
+
+            // Sync Python changes back to Rust
+            self.sync_builtins_to_rust(py, world);
         });
 
+        crate::py_input::clear_active_input();
         clear_active_world();
+    }
+
+    /// Sync Python builtin components (Transform) back to native Rust components.
+    fn sync_builtins_to_rust(&self, py: Python<'_>, world: &mut World) {
+        // Iterate only entities with python component storage.
+        let entities = world.query_filtered(&[
+            canopy_ecs::component::ComponentId::of::<crate::py_world::PythonComponentStore>(),
+        ]);
+
+        for entity in entities {
+            let maybe_py_t = world
+                .get::<crate::py_world::PythonComponentStore>(entity)
+                .and_then(|store| store.components.get("Transform"))
+                .and_then(|obj| obj.extract::<crate::components::PyTransform>(py).ok());
+
+            if let Some(py_t) = maybe_py_t {
+                // Update the Rust Transform component
+                if let Some(rust_t) = world.get_mut::<canopy_renderer::Transform>(entity) {
+                    rust_t.position = py_t.position.inner;
+                    rust_t.rotation = py_t.rotation.inner;
+                    rust_t.scale = py_t.scale.inner;
+                }
+            }
+        }
     }
 
     /// Dispatch a sim event to all registered Python handlers for that event type.
@@ -244,5 +313,40 @@ impl ScriptRunner {
             }
         });
         clear_active_world();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ScriptPlugin — integrates with canopy-core
+// ---------------------------------------------------------------------------
+
+pub struct ScriptPlugin {
+    pub runner: std::sync::Arc<parking_lot::Mutex<ScriptRunner>>,
+}
+
+impl ScriptPlugin {
+    pub fn new(runner: ScriptRunner) -> Self {
+        Self {
+            runner: std::sync::Arc::new(parking_lot::Mutex::new(runner)),
+        }
+    }
+}
+
+impl canopy_core::plugin::Plugin for ScriptPlugin {
+    fn name(&self) -> &'static str { "ScriptPlugin" }
+
+    fn build(&self, app: &mut canopy_core::app::CanopyApp) {
+        let runner = self.runner.clone();
+
+        // Register the script update system
+        app.add_fn_system(canopy_core::stage::AppStage::Update, "python_script_update", move |world, dt| {
+            let mut runner = runner.lock();
+            // We use frame index 0 for now as it's not strictly needed yet
+            runner.run_frame(world, dt, 0);
+        });
+
+        // Run Python @on_init handlers
+        let mut runner = self.runner.lock();
+        runner.run_init(&mut app.world);
     }
 }
