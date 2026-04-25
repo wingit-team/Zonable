@@ -417,7 +417,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                                 out,
                                 width,
                                 height,
-                                pen_x + (7 - col) as f32,
+                                pen_x + col as f32,
                                 y + row as f32,
                                 1.0,
                                 1.0,
