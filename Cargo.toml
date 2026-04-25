@@ -30,7 +30,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "fs", "sync", "macros"] 
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 bincode = "2.0.0-rc.3"   # Used for .canasset binary packing
 
 # Error handling
@@ -55,23 +54,20 @@ raw-window-handle = "0.6"
 # Renderer
 wgpu = "22"
 naga = { version = "22", features = ["wgsl-in"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # Audio
 cpal = "0.15"
 hound = "3.5"
 
 # Physics (Rapier 3D)
-rapier3d = { version = "0.21", features = ["simd-nightly"] }
+rapier3d = { version = "0.21", features = ["simd-stable"] }
 
 # Python bindings
 pyo3 = { version = "0.20", features = ["extension-module", "abi3-py311"] }
 
 # Noise for terrain generation
 noise = "0.9"
-
-# CLI / tools (canopy-pipeline is Python, but Rust tools if needed later)
-clap = { version = "4", features = ["derive"] }
+sysinfo = "0.30"
 
 [profile.dev]
 opt-level = 1              # Avoid debug builds being unusably slow for sim

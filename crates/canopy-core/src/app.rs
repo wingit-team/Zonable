@@ -28,15 +28,19 @@ use crate::plugin::Plugin;
 use crate::stage::AppStage;
 use canopy_assets::AssetServer;
 use canopy_ecs::{
-    system::{BoxedSystem, FnSystem, System, SystemScheduler, SystemStage},
+    system::{FnSystem, System, SystemScheduler, SystemStage},
     world::World,
 };
 use canopy_platform::{
     event::CanopyEvent,
     window::{PlatformWindow, WindowConfig},
 };
-use tracing::{info, warn};
+use canopy_renderer::{
+    GpuResourceManager, PerfToolkitState, RenderContext, StandardPipeline, system::render_system,
+};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
+use sysinfo::System as SysinfoSystem;
 
 pub struct CanopyApp {
     pub config: EngineConfig,
@@ -131,6 +135,30 @@ impl CanopyApp {
         };
 
         let (mut platform, event_loop) = PlatformWindow::create(window_config);
+        
+        // Initialize Renderer
+        let context = pollster::block_on(RenderContext::new(&platform));
+        let gpu_name = context.adapter.get_info().name;
+        let pipeline = StandardPipeline::new(&context.device, context.surface_format);
+        let gpu_manager = GpuResourceManager::default();
+
+        let mut perf_toolkit = PerfToolkitState::default();
+        perf_toolkit.system_stats.gpu_name = gpu_name;
+
+        self.world.insert_resource(context);
+        self.world.insert_resource(pipeline);
+        self.world.insert_resource(gpu_manager);
+        self.world.insert_resource(perf_toolkit);
+        self.world.insert_resource(self.asset_server.clone());
+
+        // Default Camera
+        let mut camera = canopy_renderer::Camera::new(45.0, 1.0);
+        camera.position = glam::Vec3::new(3.0, 3.0, 3.0);
+        camera.forward = (glam::Vec3::ZERO - camera.position).normalize();
+        self.world.insert_resource(camera);
+        
+        // Add render system if not already present
+        self.add_fn_system(AppStage::Render, "render_system", render_system);
 
         let mut frame_timer = FrameTimer::new(self.config.target_tick_hz, self.config.heartbeat_hz);
         let mut running = true;
@@ -138,6 +166,12 @@ impl CanopyApp {
         // winit 0.29 event loop
         let mut world = self.world;
         let mut scheduler = self.scheduler;
+        let mut system_info = SysinfoSystem::new_all();
+        let cpu_name = system_info
+            .cpus()
+            .first()
+            .map(|cpu| cpu.brand().to_string())
+            .unwrap_or_else(|| "Unknown CPU".to_string());
 
         event_loop.run(move |event, target| {
             use winit::event_loop::ControlFlow;
@@ -152,10 +186,17 @@ impl CanopyApp {
             // Process accumulated events (filled by handle_winit_event)
             let events = platform.poll_events();
             for ev in &events {
-                if matches!(ev, CanopyEvent::WindowCloseRequested) {
-                    info!("Window close requested — shutting down");
-                    target.exit();
-                    return;
+                match ev {
+                    CanopyEvent::WindowCloseRequested => {
+                        info!("Window close requested — shutting down");
+                        target.exit();
+                        return;
+                    }
+                    CanopyEvent::WindowResized { width, height } => {
+                        let mut context = world.get_resource_mut::<RenderContext>().unwrap();
+                        context.resize(*width, *height);
+                    }
+                    _ => {}
                 }
             }
 
@@ -163,8 +204,33 @@ impl CanopyApp {
             let frame = frame_timer.tick();
             let dt = frame.dt;
 
+            // Update input resource in world
+            world.insert_resource(platform.input.clone());
+
+            // Keep F3 toolkit state engine-global and available to all games.
+            let main_camera_snapshot = world.get_resource::<canopy_renderer::Camera>().cloned();
+            if let Some(toolkit) = world.get_resource_mut::<PerfToolkitState>() {
+                toolkit.update_toggle_state(&platform.input);
+                toolkit.update_frame_metrics(dt);
+                toolkit.update_secondary_camera(dt, &platform.input, main_camera_snapshot.as_ref());
+                if toolkit.enabled {
+                    system_info.refresh_cpu_usage();
+                    system_info.refresh_memory();
+                    toolkit.system_stats.cpu_name = cpu_name.clone();
+                    let cpu_len = system_info.cpus().len().max(1) as f32;
+                    toolkit.system_stats.cpu_usage_percent =
+                        system_info.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / cpu_len;
+                    toolkit.system_stats.ram_total_mb = system_info.total_memory() / (1024 * 1024);
+                    toolkit.system_stats.ram_used_mb = system_info.used_memory() / (1024 * 1024);
+                    toolkit.system_stats.gpu_usage_percent = None;
+                }
+            }
+
             // Run all systems
             scheduler.run_all(&mut world, dt);
+
+            // Snapshot current input as previous-frame input only after systems run.
+            platform.end_frame();
 
         }).expect("Event loop error");
 
@@ -178,7 +244,10 @@ impl CanopyApp {
     fn init_logging(&self) {
         let level = self.config.log_level.as_tracing_level();
         let filter = EnvFilter::from_default_env()
-            .add_directive(format!("canopy={}", level).parse().unwrap());
+            .add_directive(format!("canopy_core={}", level).parse().unwrap())
+            .add_directive(format!("canopy_renderer={}", level).parse().unwrap())
+            .add_directive(format!("canopy_platform={}", level).parse().unwrap())
+            .add_directive(format!("canopy_script={}", level).parse().unwrap());
         tracing_subscriber::fmt()
             .with_env_filter(filter)
             .with_target(true)

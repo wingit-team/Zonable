@@ -363,9 +363,12 @@ dependencies = [
  "canopy-assets",
  "canopy-ecs",
  "canopy-platform",
+ "canopy-renderer",
  "crossbeam-channel",
  "glam",
  "parking_lot",
+ "pollster",
+ "sysinfo",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -420,7 +423,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "canopy-assets",
- "canopy-core",
  "canopy-ecs",
  "canopy-platform",
  "glam",
@@ -439,6 +441,8 @@ dependencies = [
  "canopy-assets",
  "canopy-core",
  "canopy-ecs",
+ "canopy-platform",
+ "canopy-renderer",
  "canopy-sim",
  "canopy-world",
  "crossbeam-channel",
@@ -1575,6 +1579,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ntapi"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3b335231dfd352ffb0f8017f3b6027a4917f7df785ea2143d8af2adc66980ae"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1877,6 +1890,12 @@ dependencies = [
  "rustix 1.1.4",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "pollster"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "portable-atomic"
@@ -2421,6 +2440,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.30.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a5b4ddaee55fb2bea2bf0e5000747e5f5c0de765e5a5ff87f4cd106439f4bb3"
+dependencies = [
+ "cfg-if",
+ "core-foundation-sys",
+ "libc",
+ "ntapi",
+ "once_cell",
+ "rayon",
+ "windows 0.52.0",
 ]
 
 [[package]]

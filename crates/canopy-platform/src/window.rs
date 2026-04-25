@@ -79,6 +79,7 @@ pub struct PlatformWindow {
     /// Accumulated events since last `poll_events` call.
     pending_events: Vec<CanopyEvent>,
     pub logical_size: (u32, u32),
+    pub physical_size: (u32, u32),
 }
 
 impl PlatformWindow {
@@ -109,8 +110,11 @@ impl PlatformWindow {
             Some(std::sync::Arc::new(window))
         };
 
+        let physical_size = inner.as_ref().map(|w| (w.inner_size().width, w.inner_size().height)).unwrap_or((config.width, config.height));
+
         let platform = Self {
             logical_size: (config.width, config.height),
+            physical_size,
             config,
             inner,
             input: InputState::new(),
@@ -143,7 +147,8 @@ impl PlatformWindow {
                 true
             }
             WindowEvent::Resized(size) => {
-                self.logical_size = (size.width, size.height);
+                self.logical_size = (size.width, size.height); // Note: winit 0.29 Resized gives physical
+                self.physical_size = (size.width, size.height);
                 self.pending_events.push(CanopyEvent::WindowResized {
                     width: size.width,
                     height: size.height,
@@ -206,9 +211,12 @@ impl PlatformWindow {
 
     /// Drain the accumulated events for this frame. Call once per frame.
     pub fn poll_events(&mut self) -> Vec<CanopyEvent> {
-        let events = std::mem::take(&mut self.pending_events);
+        std::mem::take(&mut self.pending_events)
+    }
+
+    /// Advance per-frame input snapshots after systems have run.
+    pub fn end_frame(&mut self) {
         self.input.advance_frame();
-        events
     }
 
     /// Raw window handle for wgpu surface creation.
