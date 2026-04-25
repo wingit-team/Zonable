@@ -142,6 +142,12 @@ The engine now ships with a built-in diagnostics toolkit that is always availabl
 - `F3 + C`: Toggle culling counters pane
 - `F3 + L`: Toggle frame timings pane
 
+On macOS laptops, function keys may be captured by OS shortcuts (Mission Control, brightness, etc.).
+If `F3` is intercepted by macOS, use the grave key (`) as a fallback debug modifier:
+
+- `` ` ``: Toggle base diagnostics HUD
+- `` ` + G/W/E/S/H/C/L ``: Same pane toggles as `F3 + ...`
+
 Pane toggles are exclusive by design: enabling one pane replaces the previous pane.
 
 ## License

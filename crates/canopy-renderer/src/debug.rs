@@ -144,14 +144,15 @@ impl Default for PerfToolkitState {
 
 impl PerfToolkitState {
     pub fn update_toggle_state(&mut self, input: &InputState) {
-        if input.key_just_pressed(KeyCode::F3) {
+        if input.key_just_pressed(KeyCode::F3) || input.key_just_pressed(KeyCode::Grave) {
             self.enabled = !self.enabled;
             if !self.enabled {
                 self.active_overlay = None;
             }
         }
 
-        if !self.enabled || !input.key_held(KeyCode::F3) {
+        let debug_modifier_held = input.key_held(KeyCode::F3) || input.key_held(KeyCode::Grave);
+        if !self.enabled || !debug_modifier_held {
             return;
         }
 
