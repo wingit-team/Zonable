@@ -36,85 +36,12 @@ use canopy_platform::{
     window::{PlatformWindow, WindowConfig},
 };
 use canopy_renderer::{
-    ActiveOverlayPane, GpuResourceManager, PerfToolkitState, RenderContext, StandardPipeline,
+    GpuResourceManager, OverlayRenderer, PerfToolkitState, RenderContext, StandardPipeline,
     system::render_system,
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use sysinfo::System as SysinfoSystem;
-
-fn sparkline(history: &std::collections::VecDeque<f32>) -> String {
-    if history.is_empty() {
-        return "-".to_string();
-    }
-    let glyphs = ['.', ':', '-', '=', '+', '*', '#', '%', '@'];
-    let mut min_v = f32::MAX;
-    let mut max_v = f32::MIN;
-    for &v in history {
-        min_v = min_v.min(v);
-        max_v = max_v.max(v);
-    }
-    let range = (max_v - min_v).max(0.001);
-    history
-        .iter()
-        .rev()
-        .take(32)
-        .copied()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .map(|v| {
-            let t = ((v - min_v) / range).clamp(0.0, 1.0);
-            let idx = (t * (glyphs.len() as f32 - 1.0)).round() as usize;
-            glyphs[idx]
-        })
-        .collect()
-}
-
-fn pane_detail(toolkit: &PerfToolkitState) -> String {
-    match toolkit.active_overlay {
-        None => "HUD".to_string(),
-        Some(ActiveOverlayPane::FpsGraph) => format!("FPS Graph {}", sparkline(&toolkit.fps_history)),
-        Some(ActiveOverlayPane::SecondaryCamera) => {
-            "Secondary Cam (orbit: arrows, zoom: Q/E, pan: WASD)".to_string()
-        }
-        Some(ActiveOverlayPane::EntityBreakdown) => {
-            let total = toolkit.visible_classes.iter().map(|(_, c)| *c).sum::<usize>().max(1);
-            let mut top = toolkit
-                .visible_classes
-                .iter()
-                .take(3)
-                .map(|(name, count)| {
-                    let pct = (*count as f32 / total as f32) * 100.0;
-                    format!("{}:{:.0}%", name, pct)
-                })
-                .collect::<Vec<_>>();
-            if top.is_empty() {
-                top.push("none".to_string());
-            }
-            format!("Visible Classes {}", top.join(" | "))
-        }
-        Some(ActiveOverlayPane::SystemStats) => {
-            format!("System CPU:{} GPU:{}", toolkit.system_stats.cpu_name, toolkit.system_stats.gpu_name)
-        }
-        Some(ActiveOverlayPane::Help) => {
-            "Help G:graph W:cam E:entities S:stats C:culling L:timings".to_string()
-        }
-        Some(ActiveOverlayPane::Culling) => {
-            format!(
-                "Culling Visible:{} Classes:{}",
-                toolkit.visible_classes.iter().map(|(_, c)| *c).sum::<usize>(),
-                toolkit.visible_classes.len(),
-            )
-        }
-        Some(ActiveOverlayPane::Timings) => {
-            format!(
-                "Timings frame {:.2}ms fps {:.1}",
-                toolkit.latency_ms, toolkit.fps_average
-            )
-        }
-    }
-}
 
 pub struct CanopyApp {
     pub config: EngineConfig,
@@ -209,12 +136,12 @@ impl CanopyApp {
         };
 
         let (mut platform, event_loop) = PlatformWindow::create(window_config);
-        let base_title = self.config.title.clone();
 
         // Initialize Renderer
         let context = pollster::block_on(RenderContext::new(&platform));
         let gpu_name = context.adapter.get_info().name;
         let pipeline = StandardPipeline::new(&context.device, context.surface_format);
+        let overlay_renderer = OverlayRenderer::new(&context.device, context.surface_format);
         let gpu_manager = GpuResourceManager::default();
 
         let mut perf_toolkit = PerfToolkitState::default();
@@ -222,6 +149,7 @@ impl CanopyApp {
 
         self.world.insert_resource(context);
         self.world.insert_resource(pipeline);
+        self.world.insert_resource(overlay_renderer);
         self.world.insert_resource(gpu_manager);
         self.world.insert_resource(perf_toolkit);
         self.world.insert_resource(self.asset_server.clone());
@@ -297,36 +225,12 @@ impl CanopyApp {
                     toolkit.system_stats.ram_total_mb = system_info.total_memory() / (1024 * 1024);
                     toolkit.system_stats.ram_used_mb = system_info.used_memory() / (1024 * 1024);
                     toolkit.system_stats.gpu_usage_percent = None;
-
                 }
             }
 
             // Run all systems
             scheduler.run_all(&mut world, dt);
 
-            if let Some(window) = platform.inner.as_ref() {
-                if let Some(toolkit) = world.get_resource::<PerfToolkitState>() {
-                    if toolkit.enabled {
-                        let detail = pane_detail(toolkit);
-                        let title = format!(
-                            "{} | F3 | FPS {:.1} | 1% {:.1} | Lat {:.2}ms | Ent {} | CPU {:.1}% | RAM {}/{} MB | GPU {} | {}",
-                            base_title,
-                            toolkit.fps_average,
-                            toolkit.fps_1pct_low,
-                            toolkit.latency_ms,
-                            toolkit.entity_count,
-                            toolkit.system_stats.cpu_usage_percent,
-                            toolkit.system_stats.ram_used_mb,
-                            toolkit.system_stats.ram_total_mb,
-                            toolkit.system_stats.gpu_name,
-                            detail,
-                        );
-                        window.set_title(&title);
-                    } else {
-                        window.set_title(base_title.as_str());
-                    }
-                }
-            }
 
             // Snapshot current input as previous-frame input only after systems run.
             platform.end_frame();

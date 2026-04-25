@@ -1,6 +1,7 @@
 use crate::context::RenderContext;
 use crate::debug::{classify_asset, ActiveOverlayPane, PerfToolkitState};
 use crate::gpu_assets::GpuResourceManager;
+use crate::overlay::OverlayRenderer;
 use crate::pipeline::StandardPipeline;
 use crate::components::{Transform, MeshRef};
 use canopy_ecs::world::World;
@@ -137,6 +138,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
                 None
             }
         });
+    let toolkit_snapshot = world.get_resource::<PerfToolkitState>().cloned();
 
     let camera_bind_group = build_camera_bind_group(&device, &pipeline, &main_camera);
     let secondary_camera_bind_group = secondary_camera
@@ -302,6 +304,24 @@ pub fn render_system(world: &mut World, _dt: f64) {
             rpass.set_scissor_rect(0, 0, surface_w as u32, surface_h as u32);
             rpass.set_bind_group(0, &camera_bind_group, &[]);
         }
+    }
+
+    if let (Some(toolkit), Some(overlay)) = (
+        toolkit_snapshot.as_ref(),
+        world.get_resource_mut::<OverlayRenderer>(),
+    ) {
+        let (surface_w, surface_h) = surface_config
+            .as_ref()
+            .map(|c| (c.width, c.height))
+            .unwrap_or((1280, 720));
+        overlay.render(
+            &device,
+            &mut encoder,
+            &view,
+            surface_w,
+            surface_h,
+            toolkit,
+        );
     }
 
     queue.submit(std::iter::once(encoder.finish()));

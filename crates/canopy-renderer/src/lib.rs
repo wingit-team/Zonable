@@ -22,7 +22,7 @@ pub mod pipeline;
 pub mod system;
 pub mod components;
 pub mod debug;
-
+pub mod overlay;
 
 pub use camera::Camera;
 pub use draw::DrawCall;
@@ -36,6 +36,7 @@ pub use debug::{
     PerfSystemStats,
     PerfToolkitState,
 };
+pub use overlay::OverlayRenderer;
 
 pub mod prelude {
     pub use super::camera::Camera;
