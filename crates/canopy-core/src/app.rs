@@ -135,7 +135,8 @@ impl CanopyApp {
         };
 
         let (mut platform, event_loop) = PlatformWindow::create(window_config);
-        
+        let base_title = self.config.title.clone();
+
         // Initialize Renderer
         let context = pollster::block_on(RenderContext::new(&platform));
         let gpu_name = context.adapter.get_info().name;
@@ -209,6 +210,7 @@ impl CanopyApp {
 
             // Keep F3 toolkit state engine-global and available to all games.
             let main_camera_snapshot = world.get_resource::<canopy_renderer::Camera>().cloned();
+            let mut debug_title: Option<String> = None;
             if let Some(toolkit) = world.get_resource_mut::<PerfToolkitState>() {
                 toolkit.update_toggle_state(&platform.input);
                 toolkit.update_frame_metrics(dt);
@@ -223,7 +225,29 @@ impl CanopyApp {
                     toolkit.system_stats.ram_total_mb = system_info.total_memory() / (1024 * 1024);
                     toolkit.system_stats.ram_used_mb = system_info.used_memory() / (1024 * 1024);
                     toolkit.system_stats.gpu_usage_percent = None;
+
+                    let pane = toolkit
+                        .active_overlay
+                        .map(|p| format!("{:?}", p))
+                        .unwrap_or_else(|| "Base".to_string());
+                    debug_title = Some(format!(
+                        "{} | F3 [{}] | FPS {:.1} | 1% {:.1} | Lat {:.2}ms | Ent {} | CPU {:.1}% | RAM {}/{} MB | GPU {}",
+                        base_title,
+                        pane,
+                        toolkit.fps_average,
+                        toolkit.fps_1pct_low,
+                        toolkit.latency_ms,
+                        toolkit.entity_count,
+                        toolkit.system_stats.cpu_usage_percent,
+                        toolkit.system_stats.ram_used_mb,
+                        toolkit.system_stats.ram_total_mb,
+                        toolkit.system_stats.gpu_name,
+                    ));
                 }
+            }
+
+            if let Some(window) = platform.inner.as_ref() {
+                window.set_title(debug_title.as_deref().unwrap_or(base_title.as_str()));
             }
 
             // Run all systems

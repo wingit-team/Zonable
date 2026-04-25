@@ -1,15 +1,17 @@
 use crate::context::RenderContext;
+use crate::debug::{classify_asset, ActiveOverlayPane, PerfToolkitState};
 use crate::gpu_assets::GpuResourceManager;
 use crate::pipeline::StandardPipeline;
 use crate::components::{Transform, MeshRef};
 use canopy_ecs::world::World;
 use canopy_assets::AssetServer;
+use std::collections::BTreeMap;
 use wgpu::util::DeviceExt;
 use wgpu::{
     Color, LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
     RenderPassDescriptor,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -31,6 +33,37 @@ struct MaterialUniforms {
     padding2: f32,
 }
 
+fn build_camera_bind_group(
+    device: &wgpu::Device,
+    pipeline: &StandardPipeline,
+    camera: &crate::camera::Camera,
+) -> wgpu::BindGroup {
+    let view_mat = camera.view_matrix();
+    let proj_mat = camera.projection_matrix();
+    let uniform = CameraUniform {
+        view_proj: (proj_mat * view_mat).to_cols_array(),
+        view: view_mat.to_cols_array(),
+        proj: proj_mat.to_cols_array(),
+        position: [camera.position.x, camera.position.y, camera.position.z, 1.0],
+        inv_view_proj: (proj_mat * view_mat).inverse().to_cols_array(),
+    };
+
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Camera Uniform Buffer"),
+        contents: bytemuck::cast_slice(&[uniform]),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Camera Bind Group"),
+        layout: &pipeline.camera_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: camera_buffer.as_entire_binding(),
+        }],
+    })
+}
+
 pub fn render_system(world: &mut World, _dt: f64) {
     // 1. Immutable phase: Collect renderable entities
     let entities = world.query_filtered(&[
@@ -39,10 +72,21 @@ pub fn render_system(world: &mut World, _dt: f64) {
     ]);
 
     let mut render_list = Vec::new();
+    let mut class_counts: BTreeMap<String, usize> = BTreeMap::new();
     for entity in entities {
         if let (Some(t), Some(m)) = (world.get::<Transform>(entity), world.get::<MeshRef>(entity)) {
             render_list.push((*t, m.clone()));
+            let class_name = classify_asset(&m.asset);
+            *class_counts.entry(class_name).or_insert(0) += 1;
         }
+    }
+
+    let total_entities = world.entity_count();
+    if let Some(toolkit) = world.get_resource_mut::<PerfToolkitState>() {
+        toolkit.entity_count = total_entities;
+        let mut classes: Vec<(String, usize)> = class_counts.into_iter().collect();
+        classes.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        toolkit.visible_classes = classes;
     }
 
     // 2. Resource phase: Extract context and prepare surface
@@ -73,38 +117,31 @@ pub fn render_system(world: &mut World, _dt: f64) {
     };
     
     // Now 'context' is dropped, we can borrow world mutably for camera
-    let camera_bind_group = if let Some(mut camera) = world.get_resource_mut::<crate::camera::Camera>() {
-        camera.aspect = surface_config.as_ref().map(|c| c.width as f32 / c.height as f32).unwrap_or(1.0);
-        
-        let view_mat = camera.view_matrix();
-        let proj_mat = camera.projection_matrix();
-        let uniform = CameraUniform {
-            view_proj: (proj_mat * view_mat).to_cols_array(),
-            view: view_mat.to_cols_array(),
-            proj: proj_mat.to_cols_array(),
-            position: [camera.position.x, camera.position.y, camera.position.z, 1.0],
-            inv_view_proj: (proj_mat * view_mat).inverse().to_cols_array(),
-        };
-        
-        info!("render_system: camera view_proj={:?}", proj_mat * view_mat);
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Camera Bind Group"),
-            layout: &pipeline.camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-        })
+    let main_camera = if let Some(camera) = world.get_resource_mut::<crate::camera::Camera>() {
+        camera.aspect = surface_config
+            .as_ref()
+            .map(|c| c.width as f32 / c.height as f32)
+            .unwrap_or(1.0);
+        camera.clone()
     } else {
         return;
     };
+    debug!("render_system: camera view_proj={:?}", main_camera.view_projection());
+
+    let secondary_camera = world
+        .get_resource::<PerfToolkitState>()
+        .and_then(|toolkit| {
+            if toolkit.enabled && toolkit.active_overlay == Some(ActiveOverlayPane::SecondaryCamera) {
+                Some(toolkit.secondary_camera.camera.clone())
+            } else {
+                None
+            }
+        });
+
+    let camera_bind_group = build_camera_bind_group(&device, &pipeline, &main_camera);
+    let secondary_camera_bind_group = secondary_camera
+        .as_ref()
+        .map(|camera| build_camera_bind_group(&device, &pipeline, camera));
 
     // 4. Encode Render Pass
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -114,7 +151,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
     {
         let depth_view = {
             let context = world.get_resource::<RenderContext>().unwrap();
-            context.depth_view.as_ref().map(|v| v.clone())
+            context.depth_view.as_ref().map(|v| v)
         };
 
         let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -188,53 +225,82 @@ pub fn render_system(world: &mut World, _dt: f64) {
         rpass.set_bind_group(1, &material_bind_group, &[]);
 
         // Re-acquire GpuResourceManager
-        let mut gpu_resources = world.get_resource_mut::<GpuResourceManager>().unwrap();
+        let gpu_resources = world.get_resource_mut::<GpuResourceManager>().unwrap();
 
-        for (transform, mesh_ref) in render_list {
-            let handle = asset_server.register(&mesh_ref.asset);
-            
-            if let Err(e) = asset_server.load_sync(&mesh_ref.asset) {
-                error!("render_system: failed to load {}: {:?}", mesh_ref.asset, e);
-                continue;
-            }
+        let mut draw_list = |rpass: &mut wgpu::RenderPass<'_>| {
+            for (transform, mesh_ref) in &render_list {
+                let handle = asset_server.register(&mesh_ref.asset);
 
-            if let Some(lods) = asset_server.get_lod_set(&handle) {
-                let mesh = &lods.lods[0];
-                if gpu_resources.get_mesh(handle.id).is_none() {
-                    gpu_resources.upload_mesh(&device, handle.id, mesh);
+                if let Err(e) = asset_server.load_sync(&mesh_ref.asset) {
+                    error!("render_system: failed to load {}: {:?}", mesh_ref.asset, e);
+                    continue;
                 }
 
-                if let Some(gpu_mesh) = gpu_resources.get_mesh(handle.id) {
-                    info!("render_system: drawing {} (indices={}) at pos={:?}, rot={:?}", 
-                        mesh_ref.asset, gpu_mesh.index_count, transform.position, transform.rotation);
-                    
-                    let model_matrix = glam::Mat4::from_scale_rotation_translation(
-                        transform.scale,
-                        transform.rotation,
-                        transform.position,
-                    );
+                if let Some(lods) = asset_server.get_lod_set(&handle) {
+                    let mesh = &lods.lods[0];
+                    if gpu_resources.get_mesh(handle.id).is_none() {
+                        gpu_resources.upload_mesh(&device, handle.id, mesh);
+                    }
 
-                    let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("Instance Buffer"),
-                        contents: bytemuck::cast_slice(&model_matrix.to_cols_array()),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
+                    if let Some(gpu_mesh) = gpu_resources.get_mesh(handle.id) {
+                        debug!(
+                            "render_system: drawing {} (indices={}) at pos={:?}, rot={:?}",
+                            mesh_ref.asset,
+                            gpu_mesh.index_count,
+                            transform.position,
+                            transform.rotation
+                        );
 
-                    rpass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-                    rpass.set_vertex_buffer(1, instance_buffer.slice(..));
-                    
-                    let index_format = if gpu_mesh.index_u32 {
-                        wgpu::IndexFormat::Uint32
-                    } else {
-                        wgpu::IndexFormat::Uint16
-                    };
+                        let model_matrix = glam::Mat4::from_scale_rotation_translation(
+                            transform.scale,
+                            transform.rotation,
+                            transform.position,
+                        );
 
-                    rpass.set_index_buffer(gpu_mesh.index_buffer.slice(..), index_format);
-                    rpass.draw_indexed(0..gpu_mesh.index_count, 0, 0..1);
+                        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("Instance Buffer"),
+                            contents: bytemuck::cast_slice(&model_matrix.to_cols_array()),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
+
+                        rpass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
+                        rpass.set_vertex_buffer(1, instance_buffer.slice(..));
+
+                        let index_format = if gpu_mesh.index_u32 {
+                            wgpu::IndexFormat::Uint32
+                        } else {
+                            wgpu::IndexFormat::Uint16
+                        };
+
+                        rpass.set_index_buffer(gpu_mesh.index_buffer.slice(..), index_format);
+                        rpass.draw_indexed(0..gpu_mesh.index_count, 0, 0..1);
+                    }
+                } else {
+                    warn!("render_system: mesh {} has no LoD data", mesh_ref.asset);
                 }
-            } else {
-                warn!("render_system: mesh {} has no LoD data", mesh_ref.asset);
             }
+        };
+
+        draw_list(&mut rpass);
+
+        // Secondary debug camera (F3+W): draws from the same extracted render list,
+        // so it cannot reveal entities outside the main camera visibility set.
+        if let Some(secondary_bg) = secondary_camera_bind_group.as_ref() {
+            let (surface_w, surface_h) = surface_config
+                .as_ref()
+                .map(|c| (c.width as f32, c.height as f32))
+                .unwrap_or((1280.0, 720.0));
+            let panel_w = surface_w * 0.34;
+            let panel_h = surface_h * 0.34;
+            rpass.set_viewport(16.0, surface_h - panel_h - 16.0, panel_w, panel_h, 0.0, 1.0);
+            rpass.set_scissor_rect(16, (surface_h - panel_h - 16.0) as u32, panel_w as u32, panel_h as u32);
+            rpass.set_bind_group(0, secondary_bg, &[]);
+            draw_list(&mut rpass);
+
+            // Reset viewport/scissor for any future overlays.
+            rpass.set_viewport(0.0, 0.0, surface_w, surface_h, 0.0, 1.0);
+            rpass.set_scissor_rect(0, 0, surface_w as u32, surface_h as u32);
+            rpass.set_bind_group(0, &camera_bind_group, &[]);
         }
     }
 

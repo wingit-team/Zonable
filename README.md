@@ -129,6 +129,21 @@ rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
 - **Chunk streaming**: Predictive pre-loading based on entity velocity + look direction.
 - **GIL strategy**: Python systems dispatch through a `ScriptRunner` that batches inputs before acquiring the GIL.
 
+## F3 Performance Toolkit (Global)
+
+The engine now ships with a built-in diagnostics toolkit that is always available in every game.
+
+- `F3`: Toggle base diagnostics HUD (`FPS average`, `1% low`, frame latency)
+- `F3 + G`: Toggle FPS graph pane (exclusive)
+- `F3 + W`: Toggle secondary orbital debug camera pane (exclusive)
+- `F3 + E`: Toggle entity diagnostics pane (`entity_count` + visible render classes)
+- `F3 + S`: Toggle system stats pane (CPU, RAM, GPU name)
+- `F3 + H`: Toggle controls/help pane
+- `F3 + C`: Toggle culling counters pane
+- `F3 + L`: Toggle frame timings pane
+
+Pane toggles are exclusive by design: enabling one pane replaces the previous pane.
+
 ## License
 
 Proprietary — All Rights Reserved. Wingit Team.
