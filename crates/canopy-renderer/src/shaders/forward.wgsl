@@ -91,6 +91,12 @@ struct MaterialUniforms {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Use geometric face normal for strong faceted cel shading even on weak mesh normals.
+    var face_normal = normalize(cross(dpdx(in.world_pos), dpdy(in.world_pos)));
+    if dot(face_normal, normalize(in.world_normal)) < 0.0 {
+        face_normal = -face_normal;
+    }
+
     if camera.pass_flags.x > 0.5 {
         let to_frag = in.world_pos - camera.main_position.xyz;
         let depth = dot(to_frag, camera.main_forward.xyz);
@@ -107,7 +113,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         let view_to_main = normalize(camera.main_position.xyz - in.world_pos);
-        if dot(normalize(in.world_normal), view_to_main) <= 0.0 {
+        if dot(face_normal, view_to_main) <= 0.0 {
             discard;
         }
     }
@@ -117,7 +123,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Cel-shaded sunlight with stronger warm tint so lighting changes are obvious.
     let light_dir = normalize(-camera.sun_direction.xyz);
-    let ndotl = max(dot(normalize(in.world_normal), light_dir), 0.0);
+    let ndotl = max(dot(face_normal, light_dir), 0.0);
     let steps = max(camera.cel_params.x, 1.0);
     let cel = floor(ndotl * steps) / steps;
     let ambient = albedo.rgb * 0.20;

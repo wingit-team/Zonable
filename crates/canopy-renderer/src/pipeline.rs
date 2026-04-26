@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct StandardPipeline {
+    pub sky_pipeline: Arc<RenderPipeline>,
     pub gbuffer_pipeline: Arc<RenderPipeline>,
     pub lighting_pipeline: Arc<RenderPipeline>,
     pub forward_pipeline: Arc<RenderPipeline>,
@@ -24,6 +25,11 @@ impl StandardPipeline {
         let gbuffer_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("GBuffer Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/gbuffer.wgsl").into()),
+        });
+
+        let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Sky Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/sky.wgsl").into()),
         });
         
         let lighting_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -151,6 +157,12 @@ impl StandardPipeline {
             push_constant_ranges: &[],
         });
 
+        let sky_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Sky Pipeline Layout"),
+            bind_group_layouts: &[&camera_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
         let lighting_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Lighting Pipeline Layout"),
             bind_group_layouts: &[&camera_bind_group_layout, &lighting_bind_group_layout],
@@ -224,6 +236,35 @@ impl StandardPipeline {
             multiview: None,
         });
 
+        let sky_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Sky Pipeline"),
+            cache: None,
+            layout: Some(&sky_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &sky_shader,
+                entry_point: "vs_main",
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(FragmentState {
+                module: &sky_shader,
+                entry_point: "fs_main",
+                targets: &[Some(ColorTargetState {
+                    format: surface_format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
         let lighting_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Lighting Pipeline"),
             cache: None,
@@ -286,6 +327,7 @@ impl StandardPipeline {
         });
 
         Self {
+            sky_pipeline: Arc::new(sky_pipeline),
             gbuffer_pipeline: Arc::new(gbuffer_pipeline),
             lighting_pipeline: Arc::new(lighting_pipeline),
             forward_pipeline: Arc::new(forward_pipeline),

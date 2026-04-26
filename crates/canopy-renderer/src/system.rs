@@ -273,12 +273,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
                 view: &view,
                 resolve_target: None,
                 ops: Operations {
-                    load: LoadOp::Clear(Color {
-                        r: environment.sky_horizon_color[0] as f64,
-                        g: environment.sky_horizon_color[1] as f64,
-                        b: environment.sky_horizon_color[2] as f64,
-                        a: 1.0,
-                    }),
+                    load: LoadOp::Clear(Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -293,6 +288,10 @@ pub fn render_system(world: &mut World, _dt: f64) {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
+        rpass.set_pipeline(&pipeline.sky_pipeline);
+        rpass.set_bind_group(0, &camera_bind_group, &[]);
+        rpass.draw(0..3, 0..1);
 
         rpass.set_pipeline(&pipeline.forward_pipeline);
         rpass.set_bind_group(0, &camera_bind_group, &[]);
