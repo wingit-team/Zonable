@@ -29,6 +29,12 @@ struct CameraUniform {
     sky_top_color: [f32; 4],
     sky_horizon_color: [f32; 4],
     cel_params: [f32; 4],
+    main_position: [f32; 4],
+    main_forward: [f32; 4],
+    main_right: [f32; 4],
+    main_up: [f32; 4],
+    main_fov_aspect: [f32; 4],
+    pass_flags: [f32; 4],
 }
 
 #[repr(C)]
@@ -44,16 +50,27 @@ struct MaterialUniforms {
 fn build_camera_bind_group(
     device: &wgpu::Device,
     pipeline: &StandardPipeline,
-    camera: &crate::camera::Camera,
+    render_camera: &crate::camera::Camera,
+    main_camera: &crate::camera::Camera,
     environment: &RenderEnvironment,
+    secondary_pass: bool,
 ) -> wgpu::BindGroup {
-    let view_mat = camera.view_matrix();
-    let proj_mat = camera.projection_matrix();
+    let view_mat = render_camera.view_matrix();
+    let proj_mat = render_camera.projection_matrix();
+    let main_right = main_camera.forward.cross(main_camera.up).normalize_or_zero();
+    let main_up = main_right.cross(main_camera.forward).normalize_or_zero();
+    let tan_half_y = (main_camera.fov_y_radians * 0.5).tan();
+    let tan_half_x = tan_half_y * main_camera.aspect.max(0.0001);
     let uniform = CameraUniform {
         view_proj: (proj_mat * view_mat).to_cols_array(),
         view: view_mat.to_cols_array(),
         proj: proj_mat.to_cols_array(),
-        position: [camera.position.x, camera.position.y, camera.position.z, 1.0],
+        position: [
+            render_camera.position.x,
+            render_camera.position.y,
+            render_camera.position.z,
+            1.0,
+        ],
         inv_view_proj: (proj_mat * view_mat).inverse().to_cols_array(),
         sun_direction: [
             environment.sun_direction.x,
@@ -81,6 +98,17 @@ fn build_camera_bind_group(
             1.0,
         ],
         cel_params: [environment.cel_shading_steps.max(1.0), 0.0, 0.0, 0.0],
+        main_position: [
+            main_camera.position.x,
+            main_camera.position.y,
+            main_camera.position.z,
+            1.0,
+        ],
+        main_forward: [main_camera.forward.x, main_camera.forward.y, main_camera.forward.z, 0.0],
+        main_right: [main_right.x, main_right.y, main_right.z, 0.0],
+        main_up: [main_up.x, main_up.y, main_up.z, 0.0],
+        main_fov_aspect: [tan_half_y, tan_half_x, main_camera.near, main_camera.far],
+        pass_flags: [if secondary_pass { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
     };
 
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -207,10 +235,26 @@ pub fn render_system(world: &mut World, _dt: f64) {
         });
     let toolkit_snapshot = world.get_resource::<PerfToolkitState>().cloned();
 
-    let camera_bind_group = build_camera_bind_group(&device, &pipeline, &main_camera, &environment);
+    let camera_bind_group = build_camera_bind_group(
+        &device,
+        &pipeline,
+        &main_camera,
+        &main_camera,
+        &environment,
+        false,
+    );
     let secondary_camera_bind_group = secondary_camera
         .as_ref()
-        .map(|camera| build_camera_bind_group(&device, &pipeline, camera, &environment));
+        .map(|camera| {
+            build_camera_bind_group(
+                &device,
+                &pipeline,
+                camera,
+                &main_camera,
+                &environment,
+                true,
+            )
+        });
 
     // 4. Encode Render Pass
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

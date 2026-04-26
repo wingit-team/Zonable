@@ -204,7 +204,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     height,
                     16.0,
                     bottom_pane_y + line_height,
-                    "AUTO ORBIT AROUND MAIN CAMERA TARGET",
+                    "AUTO ORBIT AROUND MAIN TARGET",
                     [0.9, 0.9, 0.9, 1.0],
                 );
                 self.push_text_px(
@@ -213,7 +213,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     height,
                     16.0,
                     bottom_pane_y + line_height * 2.0,
-                    "SECOND VIEW IS READ-ONLY FOR CULLING VALIDATION",
+                    "SECOND VIEW: MAIN-CAMERA CULLING ONLY",
+                    [0.9, 0.9, 0.9, 1.0],
+                );
+                self.push_text_px(
+                    &mut vertices,
+                    width,
+                    height,
+                    16.0,
+                    bottom_pane_y + line_height * 3.0,
+                    "READ-ONLY",
                     [0.9, 0.9, 0.9, 1.0],
                 );
             }

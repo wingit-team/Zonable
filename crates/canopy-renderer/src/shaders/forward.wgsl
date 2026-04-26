@@ -12,6 +12,12 @@ struct CameraUniform {
     sky_top_color: vec4<f32>,
     sky_horizon_color: vec4<f32>,
     cel_params: vec4<f32>,
+    main_position: vec4<f32>,
+    main_forward: vec4<f32>,
+    main_right: vec4<f32>,
+    main_up: vec4<f32>,
+    main_fov_aspect: vec4<f32>,
+    pass_flags: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -38,6 +44,7 @@ struct VertexOutput {
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
     @location(3) view_distance: f32,
+    @location(4) world_pos: vec3<f32>,
 };
 
 @vertex
@@ -64,6 +71,7 @@ fn vs_main(
     out.world_normal = normalize(normal_matrix * model.normal);
 
     let world_pos = model_matrix * vec4<f32>(model.position, 1.0);
+    out.world_pos = world_pos.xyz;
     out.view_distance = distance(world_pos.xyz, camera.position.xyz);
     out.clip_position = camera.view_proj * world_pos;
     return out;
@@ -83,16 +91,38 @@ struct MaterialUniforms {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if camera.pass_flags.x > 0.5 {
+        let to_frag = in.world_pos - camera.main_position.xyz;
+        let depth = dot(to_frag, camera.main_forward.xyz);
+        if depth < camera.main_fov_aspect.z || depth > camera.main_fov_aspect.w {
+            discard;
+        }
+
+        let x = abs(dot(to_frag, camera.main_right.xyz));
+        let y = abs(dot(to_frag, camera.main_up.xyz));
+        let half_y = camera.main_fov_aspect.x * depth;
+        let half_x = camera.main_fov_aspect.y * depth;
+        if x > half_x || y > half_y {
+            discard;
+        }
+
+        let view_to_main = normalize(camera.main_position.xyz - in.world_pos);
+        if dot(normalize(in.world_normal), view_to_main) <= 0.0 {
+            discard;
+        }
+    }
+
     let tex_color = textureSample(t_albedo, s_albedo, in.uv);
     let albedo = tex_color * mat_uniforms.base_color;
 
-    // Cel-shaded sun lighting with default angled directional light.
+    // Cel-shaded sunlight with stronger warm tint so lighting changes are obvious.
     let light_dir = normalize(-camera.sun_direction.xyz);
     let ndotl = max(dot(normalize(in.world_normal), light_dir), 0.0);
     let steps = max(camera.cel_params.x, 1.0);
     let cel = floor(ndotl * steps) / steps;
-    let ambient = albedo.rgb * 0.35;
-    let diffuse = albedo.rgb * (0.25 + cel * 0.9);
+    let ambient = albedo.rgb * 0.20;
+    let sun_tint = vec3<f32>(1.15, 1.0, 0.82);
+    let diffuse = albedo.rgb * sun_tint * (0.06 + cel * 1.25);
     let lit = ambient + diffuse;
 
     let fog_density = max(camera.fog_params.x, 0.0);
