@@ -91,10 +91,16 @@ struct MaterialUniforms {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Use geometric face normal for strong faceted cel shading even on weak mesh normals.
-    var face_normal = normalize(cross(dpdx(in.world_pos), dpdy(in.world_pos)));
-    if dot(face_normal, normalize(in.world_normal)) < 0.0 {
-        face_normal = -face_normal;
+    // Build a stable faceted normal from the dominant interpolated normal axis.
+    let smooth_normal = normalize(in.world_normal);
+    let abs_n = abs(smooth_normal);
+    var face_normal = vec3<f32>(0.0, 1.0, 0.0);
+    if abs_n.x >= abs_n.y && abs_n.x >= abs_n.z {
+        face_normal = vec3<f32>(sign(smooth_normal.x), 0.0, 0.0);
+    } else if abs_n.y >= abs_n.z {
+        face_normal = vec3<f32>(0.0, sign(smooth_normal.y), 0.0);
+    } else {
+        face_normal = vec3<f32>(0.0, 0.0, sign(smooth_normal.z));
     }
 
     if camera.pass_flags.x > 0.5 {

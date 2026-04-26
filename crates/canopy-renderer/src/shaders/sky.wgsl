@@ -41,8 +41,10 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let near_clip = vec4<f32>(in.clip_xy, 0.0, 1.0);
-    let far_clip = vec4<f32>(in.clip_xy, 1.0, 1.0);
+    // Reversed-Z projection and Metal screen-space need flipped Y for sky direction.
+    let clip_xy = vec2<f32>(in.clip_xy.x, -in.clip_xy.y);
+    let near_clip = vec4<f32>(clip_xy, 1.0, 1.0);
+    let far_clip = vec4<f32>(clip_xy, 0.0, 1.0);
 
     let near_world_h = camera.inv_view_proj * near_clip;
     let far_world_h = camera.inv_view_proj * far_clip;
@@ -54,7 +56,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var sky = mix(camera.sky_horizon_color.rgb, camera.sky_top_color.rgb, up_amount);
 
     // Strong visible sun disk in sky.
-    let sun_dir = normalize(-camera.sun_direction.xyz);
+    var sun_dir = normalize(-camera.sun_direction.xyz);
+    sun_dir = normalize(vec3<f32>(sun_dir.x, abs(sun_dir.y), sun_dir.z));
     let sun_dot = max(dot(ray_dir, sun_dir), 0.0);
     let sun_core = smoothstep(0.9985, 1.0, sun_dot);
     let sun_halo = smoothstep(0.965, 1.0, sun_dot) * 0.25;
