@@ -45,47 +45,14 @@ impl SecondaryCameraState {
         }
     }
 
-    pub fn update_from_main(&mut self, dt: f64, input: &InputState, main: &Camera) {
-        // Orbital controls are only active while the secondary pane is selected.
-        let orbit_speed = 1.8_f32;
-        let zoom_speed = 12.0_f32;
-        let pan_speed = 10.0_f32;
+    pub fn update_from_main(&mut self, dt: f64, main: &Camera) {
+        // Secondary debug camera intentionally auto-orbits only; it is not user-movable.
+        self.yaw += 0.75 * dt as f32;
+        self.pitch = 0.35;
+        self.distance = 12.0;
+        self.pan = glam::Vec3::ZERO;
 
-        if input.key_held(KeyCode::Left) {
-            self.yaw += orbit_speed * dt as f32;
-        }
-        if input.key_held(KeyCode::Right) {
-            self.yaw -= orbit_speed * dt as f32;
-        }
-        if input.key_held(KeyCode::Up) {
-            self.pitch = (self.pitch + orbit_speed * dt as f32).clamp(-1.2, 1.2);
-        }
-        if input.key_held(KeyCode::Down) {
-            self.pitch = (self.pitch - orbit_speed * dt as f32).clamp(-1.2, 1.2);
-        }
-        if input.key_held(KeyCode::Q) {
-            self.distance = (self.distance - zoom_speed * dt as f32).max(2.0);
-        }
-        if input.key_held(KeyCode::E) {
-            self.distance = (self.distance + zoom_speed * dt as f32).min(150.0);
-        }
-
-        let right = main.forward.cross(main.up).normalize_or_zero();
-        let flat_forward = glam::Vec3::new(main.forward.x, 0.0, main.forward.z).normalize_or_zero();
-        if input.key_held(KeyCode::A) {
-            self.pan -= right * pan_speed * dt as f32;
-        }
-        if input.key_held(KeyCode::D) {
-            self.pan += right * pan_speed * dt as f32;
-        }
-        if input.key_held(KeyCode::W) {
-            self.pan += flat_forward * pan_speed * dt as f32;
-        }
-        if input.key_held(KeyCode::S) {
-            self.pan -= flat_forward * pan_speed * dt as f32;
-        }
-
-        let target = main.position + main.forward * 8.0 + self.pan;
+        let target = main.position + main.forward * 8.0;
         let orbit_offset = glam::Vec3::new(
             self.yaw.cos() * self.pitch.cos(),
             self.pitch.sin(),
@@ -216,12 +183,12 @@ impl PerfToolkitState {
         self.latency_ms = (dt_seconds as f32) * 1000.0;
     }
 
-    pub fn update_secondary_camera(&mut self, dt: f64, input: &InputState, main_camera: Option<&Camera>) {
+    pub fn update_secondary_camera(&mut self, dt: f64, main_camera: Option<&Camera>) {
         if !self.enabled || self.active_overlay != Some(ActiveOverlayPane::SecondaryCamera) {
             return;
         }
         if let Some(main) = main_camera {
-            self.secondary_camera.update_from_main(dt, input, main);
+            self.secondary_camera.update_from_main(dt, main);
         }
     }
 }

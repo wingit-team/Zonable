@@ -1,5 +1,6 @@
 use crate::context::RenderContext;
 use crate::debug::{classify_asset, ActiveOverlayPane, PerfToolkitState};
+use crate::environment::RenderEnvironment;
 use crate::gpu_assets::GpuResourceManager;
 use crate::overlay::OverlayRenderer;
 use crate::pipeline::StandardPipeline;
@@ -22,6 +23,12 @@ struct CameraUniform {
     proj: [f32; 16],
     position: [f32; 4],
     inv_view_proj: [f32; 16],
+    sun_direction: [f32; 4],
+    fog_color: [f32; 4],
+    fog_params: [f32; 4],
+    sky_top_color: [f32; 4],
+    sky_horizon_color: [f32; 4],
+    cel_params: [f32; 4],
 }
 
 #[repr(C)]
@@ -38,6 +45,7 @@ fn build_camera_bind_group(
     device: &wgpu::Device,
     pipeline: &StandardPipeline,
     camera: &crate::camera::Camera,
+    environment: &RenderEnvironment,
 ) -> wgpu::BindGroup {
     let view_mat = camera.view_matrix();
     let proj_mat = camera.projection_matrix();
@@ -47,6 +55,32 @@ fn build_camera_bind_group(
         proj: proj_mat.to_cols_array(),
         position: [camera.position.x, camera.position.y, camera.position.z, 1.0],
         inv_view_proj: (proj_mat * view_mat).inverse().to_cols_array(),
+        sun_direction: [
+            environment.sun_direction.x,
+            environment.sun_direction.y,
+            environment.sun_direction.z,
+            0.0,
+        ],
+        fog_color: [
+            environment.fog_color[0],
+            environment.fog_color[1],
+            environment.fog_color[2],
+            1.0,
+        ],
+        fog_params: [environment.fog_density.max(0.0), environment.fog_start.max(0.0), 0.0, 0.0],
+        sky_top_color: [
+            environment.sky_top_color[0],
+            environment.sky_top_color[1],
+            environment.sky_top_color[2],
+            1.0,
+        ],
+        sky_horizon_color: [
+            environment.sky_horizon_color[0],
+            environment.sky_horizon_color[1],
+            environment.sky_horizon_color[2],
+            1.0,
+        ],
+        cel_params: [environment.cel_shading_steps.max(1.0), 0.0, 0.0, 0.0],
     };
 
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -65,8 +99,33 @@ fn build_camera_bind_group(
     })
 }
 
+fn is_visible_to_main_camera(camera: &crate::camera::Camera, transform: &Transform) -> bool {
+    let to_obj = transform.position - camera.position;
+    let distance_along_forward = to_obj.dot(camera.forward);
+    let radius = transform.scale.max_element().max(1.0) * 0.866;
+    if distance_along_forward < camera.near - radius || distance_along_forward > camera.far + radius {
+        return false;
+    }
+
+    let right = camera.forward.cross(camera.up).normalize_or_zero();
+    if right.length_squared() <= f32::EPSILON {
+        return true;
+    }
+    let up = right.cross(camera.forward).normalize_or_zero();
+    let x = to_obj.dot(right).abs();
+    let y = to_obj.dot(up).abs();
+    let half_y = (camera.fov_y_radians * 0.5).tan() * distance_along_forward.max(0.0);
+    let half_x = half_y * camera.aspect.max(0.0001);
+
+    x <= half_x + radius && y <= half_y + radius
+}
+
 pub fn render_system(world: &mut World, _dt: f64) {
     // 1. Immutable phase: Collect renderable entities
+    let main_camera = world
+        .get_resource::<crate::camera::Camera>()
+        .cloned()
+        .unwrap_or_else(|| crate::camera::Camera::new(45.0, 1.0));
     let entities = world.query_filtered(&[
         canopy_ecs::component::ComponentId::of::<Transform>(),
         canopy_ecs::component::ComponentId::of::<MeshRef>(),
@@ -76,6 +135,9 @@ pub fn render_system(world: &mut World, _dt: f64) {
     let mut class_counts: BTreeMap<String, usize> = BTreeMap::new();
     for entity in entities {
         if let (Some(t), Some(m)) = (world.get::<Transform>(entity), world.get::<MeshRef>(entity)) {
+            if !is_visible_to_main_camera(&main_camera, t) {
+                continue;
+            }
             render_list.push((*t, m.clone()));
             let class_name = classify_asset(&m.asset);
             *class_counts.entry(class_name).or_insert(0) += 1;
@@ -129,6 +191,11 @@ pub fn render_system(world: &mut World, _dt: f64) {
     };
     debug!("render_system: camera view_proj={:?}", main_camera.view_projection());
 
+    let environment = world
+        .get_resource::<RenderEnvironment>()
+        .cloned()
+        .unwrap_or_default();
+
     let secondary_camera = world
         .get_resource::<PerfToolkitState>()
         .and_then(|toolkit| {
@@ -140,10 +207,10 @@ pub fn render_system(world: &mut World, _dt: f64) {
         });
     let toolkit_snapshot = world.get_resource::<PerfToolkitState>().cloned();
 
-    let camera_bind_group = build_camera_bind_group(&device, &pipeline, &main_camera);
+    let camera_bind_group = build_camera_bind_group(&device, &pipeline, &main_camera, &environment);
     let secondary_camera_bind_group = secondary_camera
         .as_ref()
-        .map(|camera| build_camera_bind_group(&device, &pipeline, camera));
+        .map(|camera| build_camera_bind_group(&device, &pipeline, camera, &environment));
 
     // 4. Encode Render Pass
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -162,7 +229,12 @@ pub fn render_system(world: &mut World, _dt: f64) {
                 view: &view,
                 resolve_target: None,
                 ops: Operations {
-                    load: LoadOp::Clear(Color { r: 0.5, g: 0.5, b: 0.8, a: 1.0 }),
+                    load: LoadOp::Clear(Color {
+                        r: environment.sky_horizon_color[0] as f64,
+                        g: environment.sky_horizon_color[1] as f64,
+                        b: environment.sky_horizon_color[2] as f64,
+                        a: 1.0,
+                    }),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -228,6 +300,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
 
         // Re-acquire GpuResourceManager
         let gpu_resources = world.get_resource_mut::<GpuResourceManager>().unwrap();
+        gpu_resources.begin_frame();
 
         let mut draw_list = |rpass: &mut wgpu::RenderPass<'_>| {
             for (transform, mesh_ref) in &render_list {
@@ -276,6 +349,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
 
                         rpass.set_index_buffer(gpu_mesh.index_buffer.slice(..), index_format);
                         rpass.draw_indexed(0..gpu_mesh.index_count, 0, 0..1);
+                        gpu_resources.mark_mesh_used(handle.id);
                     }
                 } else {
                     warn!("render_system: mesh {} has no LoD data", mesh_ref.asset);
@@ -294,8 +368,10 @@ pub fn render_system(world: &mut World, _dt: f64) {
                 .unwrap_or((1280.0, 720.0));
             let panel_w = surface_w * 0.34;
             let panel_h = surface_h * 0.34;
-            rpass.set_viewport(16.0, surface_h - panel_h - 16.0, panel_w, panel_h, 0.0, 1.0);
-            rpass.set_scissor_rect(16, (surface_h - panel_h - 16.0) as u32, panel_w as u32, panel_h as u32);
+            let panel_x = surface_w - panel_w - 16.0;
+            let panel_y = surface_h - panel_h - 16.0;
+            rpass.set_viewport(panel_x, panel_y, panel_w, panel_h, 0.0, 1.0);
+            rpass.set_scissor_rect(panel_x as u32, panel_y as u32, panel_w as u32, panel_h as u32);
             rpass.set_bind_group(0, secondary_bg, &[]);
             draw_list(&mut rpass);
 

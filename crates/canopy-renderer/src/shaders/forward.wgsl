@@ -6,6 +6,12 @@ struct CameraUniform {
     proj: mat4x4<f32>,
     position: vec4<f32>,
     inv_view_proj: mat4x4<f32>,
+    sun_direction: vec4<f32>,
+    fog_color: vec4<f32>,
+    fog_params: vec4<f32>,
+    sky_top_color: vec4<f32>,
+    sky_horizon_color: vec4<f32>,
+    cel_params: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -31,6 +37,7 @@ struct VertexOutput {
     @location(0) world_normal: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
+    @location(3) view_distance: f32,
 };
 
 @vertex
@@ -57,6 +64,7 @@ fn vs_main(
     out.world_normal = normalize(normal_matrix * model.normal);
 
     let world_pos = model_matrix * vec4<f32>(model.position, 1.0);
+    out.view_distance = distance(world_pos.xyz, camera.position.xyz);
     out.clip_position = camera.view_proj * world_pos;
     return out;
 }
@@ -76,20 +84,24 @@ struct MaterialUniforms {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(t_albedo, s_albedo, in.uv);
-    // Keep the debug path opaque even when source meshes don't carry vertex colors.
     let albedo = tex_color * mat_uniforms.base_color;
-    
-    // Simple directional lighting
-    let light_dir = normalize(vec3<f32>(1.0, 1.0, 0.5));
-    let NdotL = max(dot(normalize(in.world_normal), light_dir), 0.0);
-    
-    let ambient = albedo.rgb * 0.8;
-    let diffuse = albedo.rgb * NdotL;
-    
-    let color = ambient + diffuse;
-    
-    // Tonemapping
-    let mapped = color / (color + vec3<f32>(1.0));
-    
+
+    // Cel-shaded sun lighting with default angled directional light.
+    let light_dir = normalize(-camera.sun_direction.xyz);
+    let ndotl = max(dot(normalize(in.world_normal), light_dir), 0.0);
+    let steps = max(camera.cel_params.x, 1.0);
+    let cel = floor(ndotl * steps) / steps;
+    let ambient = albedo.rgb * 0.35;
+    let diffuse = albedo.rgb * (0.25 + cel * 0.9);
+    let lit = ambient + diffuse;
+
+    let fog_density = max(camera.fog_params.x, 0.0);
+    let fog_start = max(camera.fog_params.y, 0.0);
+    let fog_distance = max(in.view_distance - fog_start, 0.0);
+    let fog_factor = 1.0 - exp(-fog_density * fog_distance);
+    let fogged = mix(lit, camera.fog_color.rgb, fog_factor);
+
+    let mapped = fogged / (fogged + vec3<f32>(1.0));
+
     return vec4<f32>(mapped, 1.0);
 }

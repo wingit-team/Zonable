@@ -37,6 +37,7 @@ use canopy_platform::{
 };
 use canopy_renderer::{
     GpuResourceManager, OverlayRenderer, PerfToolkitState, RenderContext, StandardPipeline,
+    RenderEnvironment,
     system::render_system,
 };
 use tracing::info;
@@ -146,12 +147,22 @@ impl CanopyApp {
 
         let mut perf_toolkit = PerfToolkitState::default();
         perf_toolkit.system_stats.gpu_name = gpu_name;
+        let render_environment = RenderEnvironment {
+            cel_shading_steps: self.config.cel_shading_steps,
+            sun_direction: glam::Vec3::from_array(self.config.sun_direction).normalize_or_zero(),
+            fog_density: self.config.fog_density,
+            fog_start: self.config.fog_start,
+            fog_color: self.config.sky_horizon_color,
+            sky_top_color: self.config.sky_top_color,
+            sky_horizon_color: self.config.sky_horizon_color,
+        };
 
         self.world.insert_resource(context);
         self.world.insert_resource(pipeline);
         self.world.insert_resource(overlay_renderer);
         self.world.insert_resource(gpu_manager);
         self.world.insert_resource(perf_toolkit);
+        self.world.insert_resource(render_environment);
         self.world.insert_resource(self.asset_server.clone());
 
         // Default Camera
@@ -214,7 +225,7 @@ impl CanopyApp {
             if let Some(toolkit) = world.get_resource_mut::<PerfToolkitState>() {
                 toolkit.update_toggle_state(&platform.input);
                 toolkit.update_frame_metrics(dt);
-                toolkit.update_secondary_camera(dt, &platform.input, main_camera_snapshot.as_ref());
+                toolkit.update_secondary_camera(dt, main_camera_snapshot.as_ref());
                 if toolkit.enabled {
                     system_info.refresh_cpu_usage();
                     system_info.refresh_memory();

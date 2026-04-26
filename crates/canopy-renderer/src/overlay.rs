@@ -112,6 +112,24 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         let mut vertices = Vec::with_capacity(32_768);
         let line_height = 20.0;
 
+        if toolkit.active_overlay == Some(ActiveOverlayPane::SecondaryCamera) {
+            let panel_w = width as f32 * 0.34;
+            let panel_h = height as f32 * 0.34;
+            let panel_x = width as f32 - panel_w - 16.0;
+            let panel_y = height as f32 - panel_h - 16.0;
+            self.push_border_px(
+                &mut vertices,
+                width,
+                height,
+                panel_x - 2.0,
+                panel_y - 2.0,
+                panel_w + 4.0,
+                panel_h + 4.0,
+                2.0,
+                [0.92, 0.95, 1.0, 0.95],
+            );
+        }
+
         // Top-left compact HUD panel.
         self.push_rect_px(
             &mut vertices,
@@ -186,30 +204,41 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     height,
                     16.0,
                     bottom_pane_y + line_height,
-                    "ARROWS ORBIT  Q/E ZOOM  WASD PAN",
+                    "AUTO ORBIT AROUND MAIN CAMERA TARGET",
                     [0.9, 0.9, 0.9, 1.0],
                 );
-            }
-            Some(ActiveOverlayPane::EntityBreakdown) => {
                 self.push_text_px(
                     &mut vertices,
                     width,
                     height,
                     16.0,
-                    bottom_pane_y,
-                    "VISIBLE RENDER CLASSES",
-                    [0.7, 0.9, 1.0, 1.0],
+                    bottom_pane_y + line_height * 2.0,
+                    "SECOND VIEW IS READ-ONLY FOR CULLING VALIDATION",
+                    [0.9, 0.9, 0.9, 1.0],
                 );
-                for (i, (name, count)) in toolkit.visible_classes.iter().take(8).enumerate() {
+            }
+            Some(ActiveOverlayPane::EntityBreakdown) => {
+                let panel_w = 360.0;
+                let panel_h = 240.0;
+                let panel_x = width as f32 - panel_w - 16.0;
+                let panel_y = height as f32 - panel_h - 16.0;
+                self.push_rect_px(&mut vertices, width, height, panel_x, panel_y, panel_w, panel_h, [0.02, 0.04, 0.06, 0.82]);
+                self.push_text_px(&mut vertices, width, height, panel_x + 12.0, panel_y + 12.0, "VISIBLE ENTITY PIE", [0.7, 0.9, 1.0, 1.0]);
+
+                let pie_center_x = panel_x + 106.0;
+                let pie_center_y = panel_y + 132.0;
+                self.push_entity_pie_chart(&mut vertices, width, height, toolkit, pie_center_x, pie_center_y, 72.0);
+
+                for (i, (name, count)) in toolkit.visible_classes.iter().take(5).enumerate() {
                     let line = format!("{}: {}", name.to_ascii_uppercase(), count);
                     self.push_text_px(
                         &mut vertices,
                         width,
                         height,
-                        16.0,
-                        bottom_pane_y + line_height + (i as f32 * line_height),
+                        panel_x + 188.0,
+                        panel_y + 46.0 + (i as f32 * line_height),
                         &line,
-                        [0.9, 0.9, 0.9, 1.0],
+                        self.pie_color(i),
                     );
                 }
             }
@@ -436,6 +465,115 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             }
             pen_x += 8.0 * scale;
         }
+    }
+
+    fn push_entity_pie_chart(
+        &self,
+        out: &mut Vec<OverlayVertex>,
+        width: u32,
+        height: u32,
+        toolkit: &PerfToolkitState,
+        cx: f32,
+        cy: f32,
+        radius: f32,
+    ) {
+        let total: usize = toolkit.visible_classes.iter().map(|(_, count)| *count).sum();
+        if total == 0 {
+            return;
+        }
+
+        let mut start_angle = -std::f32::consts::FRAC_PI_2;
+        for (i, (_, count)) in toolkit.visible_classes.iter().take(5).enumerate() {
+            let frac = (*count as f32 / total as f32).clamp(0.0, 1.0);
+            let end_angle = start_angle + frac * std::f32::consts::TAU;
+            self.push_arc_slice_px(out, width, height, cx, cy, radius, start_angle, end_angle, self.pie_color(i));
+            start_angle = end_angle;
+        }
+    }
+
+    fn push_arc_slice_px(
+        &self,
+        out: &mut Vec<OverlayVertex>,
+        width: u32,
+        height: u32,
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        start: f32,
+        end: f32,
+        color: [f32; 4],
+    ) {
+        let steps = (((end - start).abs() / std::f32::consts::TAU) * 48.0).ceil().max(3.0) as usize;
+        for i in 0..steps {
+            let t0 = i as f32 / steps as f32;
+            let t1 = (i + 1) as f32 / steps as f32;
+            let a0 = start + (end - start) * t0;
+            let a1 = start + (end - start) * t1;
+
+            self.push_triangle_px(
+                out,
+                width,
+                height,
+                [cx, cy],
+                [cx + radius * a0.cos(), cy + radius * a0.sin()],
+                [cx + radius * a1.cos(), cy + radius * a1.sin()],
+                color,
+            );
+        }
+    }
+
+    fn push_triangle_px(
+        &self,
+        out: &mut Vec<OverlayVertex>,
+        width: u32,
+        height: u32,
+        a: [f32; 2],
+        b: [f32; 2],
+        c: [f32; 2],
+        color: [f32; 4],
+    ) {
+        let to_ndc = |p: [f32; 2]| -> [f32; 2] {
+            [
+                (p[0] / width as f32) * 2.0 - 1.0,
+                1.0 - (p[1] / height as f32) * 2.0,
+            ]
+        };
+        let a = to_ndc(a);
+        let b = to_ndc(b);
+        let c = to_ndc(c);
+
+        out.push(OverlayVertex { pos: a, color });
+        out.push(OverlayVertex { pos: b, color });
+        out.push(OverlayVertex { pos: c, color });
+    }
+
+    fn pie_color(&self, idx: usize) -> [f32; 4] {
+        match idx % 6 {
+            0 => [0.35, 0.72, 1.0, 0.95],
+            1 => [0.42, 0.92, 0.58, 0.95],
+            2 => [1.0, 0.74, 0.35, 0.95],
+            3 => [0.97, 0.48, 0.52, 0.95],
+            4 => [0.72, 0.64, 0.98, 0.95],
+            _ => [0.95, 0.95, 0.62, 0.95],
+        }
+    }
+
+    fn push_border_px(
+        &self,
+        out: &mut Vec<OverlayVertex>,
+        width: u32,
+        height: u32,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        thickness: f32,
+        color: [f32; 4],
+    ) {
+        self.push_rect_px(out, width, height, x, y, w, thickness, color);
+        self.push_rect_px(out, width, height, x, y + h - thickness, w, thickness, color);
+        self.push_rect_px(out, width, height, x, y, thickness, h, color);
+        self.push_rect_px(out, width, height, x + w - thickness, y, thickness, h, color);
     }
 
     fn push_rect_px(

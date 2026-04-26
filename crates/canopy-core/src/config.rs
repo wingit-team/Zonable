@@ -36,6 +36,18 @@ pub struct EngineConfig {
     pub msaa_samples: u8,
     /// Shadow map resolution.
     pub shadow_map_size: u32,
+    /// Cel-shading band count. Higher = smoother lighting.
+    pub cel_shading_steps: f32,
+    /// Directional sun direction in world space.
+    pub sun_direction: [f32; 3],
+    /// Exponential fog density (0 disables fog).
+    pub fog_density: f32,
+    /// Distance where fog starts blending in.
+    pub fog_start: f32,
+    /// Default sky color at horizon.
+    pub sky_horizon_color: [f32; 3],
+    /// Default sky color at zenith.
+    pub sky_top_color: [f32; 3],
 
     // --- Developer ---
     pub enable_profiler: bool,
@@ -79,6 +91,12 @@ impl Default for EngineConfig {
             asset_memory_mb: 2048,
             msaa_samples: 4,
             shadow_map_size: 4096,
+            cel_shading_steps: 4.0,
+            sun_direction: [-0.45, -0.85, -0.30],
+            fog_density: 0.028,
+            fog_start: 8.0,
+            sky_horizon_color: [0.68, 0.77, 0.90],
+            sky_top_color: [0.22, 0.45, 0.80],
             enable_profiler: false,
             log_level: LogLevel::Info,
         }

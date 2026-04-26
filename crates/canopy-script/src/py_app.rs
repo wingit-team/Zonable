@@ -26,6 +26,18 @@ pub struct PyEngineConfig {
     pub heartbeat_hz: u32,
     #[pyo3(get, set)]
     pub asset_memory_mb: usize,
+    #[pyo3(get, set)]
+    pub cel_shading_steps: f32,
+    #[pyo3(get, set)]
+    pub sun_direction: (f32, f32, f32),
+    #[pyo3(get, set)]
+    pub fog_density: f32,
+    #[pyo3(get, set)]
+    pub fog_start: f32,
+    #[pyo3(get, set)]
+    pub sky_horizon_color: (f32, f32, f32),
+    #[pyo3(get, set)]
+    pub sky_top_color: (f32, f32, f32),
 }
 
 #[pymethods]
@@ -42,6 +54,12 @@ impl PyEngineConfig {
         target_tick_hz = 60,
         heartbeat_hz = 4,
         asset_memory_mb = 2048,
+        cel_shading_steps = 4.0,
+        sun_direction = (-0.45, -0.85, -0.30),
+        fog_density = 0.028,
+        fog_start = 8.0,
+        sky_horizon_color = (0.68, 0.77, 0.90),
+        sky_top_color = (0.22, 0.45, 0.80),
     ))]
     pub fn new(
         title: String,
@@ -54,10 +72,22 @@ impl PyEngineConfig {
         target_tick_hz: u32,
         heartbeat_hz: u32,
         asset_memory_mb: usize,
+        cel_shading_steps: f32,
+        sun_direction: (f32, f32, f32),
+        fog_density: f32,
+        fog_start: f32,
+        sky_horizon_color: (f32, f32, f32),
+        sky_top_color: (f32, f32, f32),
     ) -> Self {
         Self {
             title, width, height, vsync, headless,
             assets_dir, scripts_dir, target_tick_hz, heartbeat_hz, asset_memory_mb,
+            cel_shading_steps,
+            sun_direction,
+            fog_density,
+            fog_start,
+            sky_horizon_color,
+            sky_top_color,
         }
     }
 
@@ -78,6 +108,16 @@ impl PyEngineConfig {
             target_tick_hz: self.target_tick_hz,
             heartbeat_hz: self.heartbeat_hz,
             asset_memory_mb: self.asset_memory_mb,
+            cel_shading_steps: self.cel_shading_steps,
+            sun_direction: [self.sun_direction.0, self.sun_direction.1, self.sun_direction.2],
+            fog_density: self.fog_density,
+            fog_start: self.fog_start,
+            sky_horizon_color: [
+                self.sky_horizon_color.0,
+                self.sky_horizon_color.1,
+                self.sky_horizon_color.2,
+            ],
+            sky_top_color: [self.sky_top_color.0, self.sky_top_color.1, self.sky_top_color.2],
             ..Default::default()
         }
     }
