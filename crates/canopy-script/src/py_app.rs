@@ -107,11 +107,22 @@ impl PyCanopyApp {
     /// Start the engine. Blocks until shutdown.
     pub fn run(&self) -> PyResult<()> {
         let engine_config = self.config.to_engine_config();
-        // Release the GIL before entering the engine main loop — the engine
-        // will re-acquire it when it needs to call Python systems.
+        let scripts_dir = self.config.scripts_dir.clone();
+        let target_tick_hz = self.config.target_tick_hz;
+
         Python::with_gil(|py| {
+            // 1. Create and prepare the ScriptRunner
+            let mut runner = crate::runner::ScriptRunner::new(scripts_dir, target_tick_hz);
+            runner.load_scripts(py)?;
+
+            // 2. Release GIL and run the engine
             py.allow_threads(|| {
-                CanopyApp::new(engine_config).run();
+                let mut app = canopy_core::app::CanopyApp::new(engine_config);
+                
+                // Add the ScriptPlugin which bridges Python logic to the engine
+                app = app.add_plugin(crate::runner::ScriptPlugin::new(runner));
+                
+                app.run();
             });
             Ok(())
         })

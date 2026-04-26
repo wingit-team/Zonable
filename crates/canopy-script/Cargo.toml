@@ -16,6 +16,8 @@ canopy-ecs     = { path = "../canopy-ecs" }
 canopy-assets  = { path = "../canopy-assets" }
 canopy-sim     = { path = "../canopy-sim" }
 canopy-world   = { path = "../canopy-world" }
+canopy-platform = { path = "../canopy-platform" }
+canopy-renderer = { path = "../canopy-renderer" }
 
 pyo3 = { workspace = true }
 glam = { workspace = true }

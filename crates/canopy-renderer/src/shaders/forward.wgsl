@@ -76,13 +76,14 @@ struct MaterialUniforms {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(t_albedo, s_albedo, in.uv);
-    let albedo = tex_color * mat_uniforms.base_color * in.color;
+    // Keep the debug path opaque even when source meshes don't carry vertex colors.
+    let albedo = tex_color * mat_uniforms.base_color;
     
     // Simple directional lighting
     let light_dir = normalize(vec3<f32>(1.0, 1.0, 0.5));
     let NdotL = max(dot(normalize(in.world_normal), light_dir), 0.0);
     
-    let ambient = albedo.rgb * 0.1;
+    let ambient = albedo.rgb * 0.8;
     let diffuse = albedo.rgb * NdotL;
     
     let color = ambient + diffuse;
@@ -90,5 +91,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Tonemapping
     let mapped = color / (color + vec3<f32>(1.0));
     
-    return vec4<f32>(mapped, albedo.a);
+    return vec4<f32>(mapped, 1.0);
 }

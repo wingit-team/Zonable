@@ -110,6 +110,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         }
 
         let mut vertices = Vec::with_capacity(32_768);
+        let line_height = 20.0;
 
         // Top-left compact HUD panel.
         self.push_rect_px(
@@ -118,8 +119,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             height,
             8.0,
             8.0,
-            460.0,
-            60.0,
+            600.0,
+            80.0,
             [0.02, 0.04, 0.06, 0.80],
         );
 
@@ -127,7 +128,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             "FPS {:.1}   1% LOW {:.1}   LAT {:.2}ms",
             toolkit.fps_average, toolkit.fps_1pct_low, toolkit.latency_ms
         );
-        self.push_text_px(&mut vertices, width, height, 16.0, 18.0, &top1, [0.8, 1.0, 0.8, 1.0]);
+        self.push_text_px(&mut vertices, width, height, 16.0, 20.0, &top1, [0.8, 1.0, 0.8, 1.0]);
 
         if toolkit.active_overlay == Some(ActiveOverlayPane::EntityBreakdown) {
             let top2 = format!("ENTITIES {}", toolkit.entity_count);
@@ -136,7 +137,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                 width,
                 height,
                 16.0,
-                34.0,
+                20.0 + line_height,
                 &top2,
                 [0.95, 0.95, 0.6, 1.0],
             );
@@ -149,10 +150,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             height,
             8.0,
             height as f32 - 220.0,
-            520.0,
+            600.0,
             210.0,
             [0.02, 0.04, 0.06, 0.78],
         );
+
+        let bottom_pane_y = height as f32 - 210.0;
 
         match toolkit.active_overlay {
             Some(ActiveOverlayPane::FpsGraph) => {
@@ -161,11 +164,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "FPS GRAPH",
                     [0.7, 0.9, 1.0, 1.0],
                 );
-                self.push_fps_graph(&mut vertices, width, height, toolkit, 20.0, height as f32 - 190.0);
+                self.push_fps_graph(&mut vertices, width, height, toolkit, 20.0, bottom_pane_y + line_height);
             }
             Some(ActiveOverlayPane::SecondaryCamera) => {
                 self.push_text_px(
@@ -173,7 +176,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "SECONDARY CAMERA",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -182,7 +185,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 184.0,
+                    bottom_pane_y + line_height,
                     "ARROWS ORBIT  Q/E ZOOM  WASD PAN",
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -193,7 +196,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "VISIBLE RENDER CLASSES",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -204,7 +207,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                         width,
                         height,
                         16.0,
-                        height as f32 - 184.0 + (i as f32 * 18.0),
+                        bottom_pane_y + line_height + (i as f32 * line_height),
                         &line,
                         [0.9, 0.9, 0.9, 1.0],
                     );
@@ -216,16 +219,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "SYSTEM STATS",
                     [0.7, 0.9, 1.0, 1.0],
                 );
                 let cpu = format!("CPU {:.1}%  {}", toolkit.system_stats.cpu_usage_percent, toolkit.system_stats.cpu_name);
                 let ram = format!("RAM {} / {} MB", toolkit.system_stats.ram_used_mb, toolkit.system_stats.ram_total_mb);
                 let gpu = format!("GPU {}", toolkit.system_stats.gpu_name);
-                self.push_text_px(&mut vertices, width, height, 16.0, height as f32 - 184.0, &cpu, [0.9, 0.9, 0.9, 1.0]);
-                self.push_text_px(&mut vertices, width, height, 16.0, height as f32 - 166.0, &ram, [0.9, 0.9, 0.9, 1.0]);
-                self.push_text_px(&mut vertices, width, height, 16.0, height as f32 - 148.0, &gpu, [0.9, 0.9, 0.9, 1.0]);
+                self.push_text_px(&mut vertices, width, height, 16.0, bottom_pane_y + line_height, &cpu, [0.9, 0.9, 0.9, 1.0]);
+                self.push_text_px(&mut vertices, width, height, 16.0, bottom_pane_y + line_height * 2.0, &ram, [0.9, 0.9, 0.9, 1.0]);
+                self.push_text_px(&mut vertices, width, height, 16.0, bottom_pane_y + line_height * 3.0, &gpu, [0.9, 0.9, 0.9, 1.0]);
             }
             Some(ActiveOverlayPane::Help) => {
                 self.push_text_px(
@@ -233,7 +236,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "F3 HELP",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -242,7 +245,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 184.0,
+                    bottom_pane_y + line_height,
                     "G GRAPH  W CAMERA  E ENTITIES  S SYSTEM",
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -251,7 +254,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 166.0,
+                    bottom_pane_y + line_height * 2.0,
                     "H HELP  C CULLING  L TIMINGS",
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -264,7 +267,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "CULLING",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -273,7 +276,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 184.0,
+                    bottom_pane_y + line_height,
                     &line,
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -285,7 +288,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "TIMINGS",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -294,7 +297,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 184.0,
+                    bottom_pane_y + line_height,
                     &line,
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -305,7 +308,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 204.0,
+                    bottom_pane_y,
                     "F3 ACTIVE",
                     [0.7, 0.9, 1.0, 1.0],
                 );
@@ -314,7 +317,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
                     width,
                     height,
                     16.0,
-                    height as f32 - 184.0,
+                    bottom_pane_y + line_height,
                     "PRESS F3+H FOR HELP",
                     [0.9, 0.9, 0.9, 1.0],
                 );
@@ -403,31 +406,35 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         text: &str,
         color: [f32; 4],
     ) {
+        let scale = 2.0f32;
         let mut pen_x = x;
+        let mut pen_y = y;
+
         for ch in text.chars() {
             if ch == '\n' {
                 pen_x = x;
+                pen_y += 10.0 * scale;
                 continue;
             }
             if let Some(glyph) = BASIC_FONTS.get(ch) {
                 for (row, bits) in glyph.iter().enumerate() {
                     for col in 0..8 {
-                        if (bits >> col) & 1 == 1 {
+                        if (*bits >> col) & 1 != 0 {
                             self.push_rect_px(
                                 out,
                                 width,
                                 height,
-                                pen_x + col as f32,
-                                y + row as f32,
-                                1.0,
-                                1.0,
+                                pen_x + col as f32 * scale,
+                                pen_y + row as f32 * scale,
+                                scale,
+                                scale,
                                 color,
                             );
                         }
                     }
                 }
             }
-            pen_x += 8.0;
+            pen_x += 8.0 * scale;
         }
     }
 
@@ -456,4 +463,3 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         out.push(OverlayVertex { pos: [x0, y1], color });
     }
 }
-

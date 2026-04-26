@@ -6,14 +6,17 @@ use wgpu::{
     ColorTargetState, Device, FragmentState, RenderPipeline, ShaderStages, TextureFormat,
 };
 
+use std::sync::Arc;
+
+#[derive(Clone)]
 pub struct StandardPipeline {
-    pub gbuffer_pipeline: RenderPipeline,
-    pub lighting_pipeline: RenderPipeline,
-    pub forward_pipeline: RenderPipeline,
+    pub gbuffer_pipeline: Arc<RenderPipeline>,
+    pub lighting_pipeline: Arc<RenderPipeline>,
+    pub forward_pipeline: Arc<RenderPipeline>,
     
-    pub camera_bind_group_layout: BindGroupLayout,
-    pub material_bind_group_layout: BindGroupLayout,
-    pub lighting_bind_group_layout: BindGroupLayout,
+    pub camera_bind_group_layout: Arc<BindGroupLayout>,
+    pub material_bind_group_layout: Arc<BindGroupLayout>,
+    pub lighting_bind_group_layout: Arc<BindGroupLayout>,
 }
 
 impl StandardPipeline {
@@ -262,18 +265,18 @@ impl StandardPipeline {
                 entry_point: "fs_main",
                 targets: &[Some(ColorTargetState {
                     format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None,
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: false, // Transparents don't write depth
+                depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::GreaterEqual,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
@@ -283,12 +286,12 @@ impl StandardPipeline {
         });
 
         Self {
-            gbuffer_pipeline,
-            lighting_pipeline,
-            forward_pipeline,
-            camera_bind_group_layout,
-            material_bind_group_layout,
-            lighting_bind_group_layout,
+            gbuffer_pipeline: Arc::new(gbuffer_pipeline),
+            lighting_pipeline: Arc::new(lighting_pipeline),
+            forward_pipeline: Arc::new(forward_pipeline),
+            camera_bind_group_layout: Arc::new(camera_bind_group_layout),
+            material_bind_group_layout: Arc::new(material_bind_group_layout),
+            lighting_bind_group_layout: Arc::new(lighting_bind_group_layout),
         }
     }
 }

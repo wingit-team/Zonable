@@ -46,12 +46,14 @@ pub mod py_app;
 pub mod py_entity;
 pub mod py_math;
 pub mod py_world;
+pub mod py_input;
 pub mod components;
 pub mod runner;
 pub mod decorators;
 
-use py_app::PyCanopyApp;
+use py_app::{PyCanopyApp, PyEngineConfig};
 use py_entity::PyEntity;
+use py_input::PyInput;
 use py_math::{PyColor, PyQuat, PyVec3};
 use py_world::PyWorld;
 
@@ -62,11 +64,15 @@ use py_world::PyWorld;
 fn canopy(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // Core types
     m.add_class::<PyCanopyApp>()?;
+    m.add_class::<PyEngineConfig>()?;
     m.add_class::<PyEntity>()?;
     m.add_class::<PyVec3>()?;
     m.add_class::<PyQuat>()?;
     m.add_class::<PyColor>()?;
     m.add_class::<PyWorld>()?;
+    m.add_class::<PyInput>()?;
+    m.add_class::<crate::py_world::PyQuery>()?;
+    m.add_class::<crate::py_world::PySystemBase>()?;
 
     // Decorator functions
     m.add_function(wrap_pyfunction!(decorators::on_event, m)?)?;
@@ -77,10 +83,12 @@ fn canopy(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     let components_mod = PyModule::new(py, "components")?;
     components::register_components(py, &components_mod)?;
     m.add_submodule(&components_mod)?;
+    
+    // PyO3 requires manual registration in sys.modules for submodules to be importable
+    py.import("sys")?.getattr("modules")?.set_item("canopy.components", components_mod)?;
 
     // Convenience: expose `canopy.world` as a module-level singleton
-    // (set by CanopyApp.run() before Python scripts are invoked)
-    m.add("world", py.None())?;
+    m.add("world", PyWorld)?;
 
     // Version info
     m.add("__version__", "0.1.0")?;

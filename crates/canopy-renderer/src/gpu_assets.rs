@@ -14,6 +14,7 @@ pub struct GpuMesh {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub index_count: u32,
+    pub index_u32: bool,
     pub memory_bytes: usize,
     pub last_used_frame: u64,
 }
@@ -100,6 +101,7 @@ impl GpuResourceManager {
             vertex_buffer,
             index_buffer,
             index_count: mesh.index_count,
+            index_u32: mesh.index_u32,
             memory_bytes: required_bytes,
             last_used_frame: self.current_frame,
         });

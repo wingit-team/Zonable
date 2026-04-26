@@ -125,12 +125,13 @@ fn get_or_create_registry(py: Python<'_>) -> PyResult<PyObject> {
             return Ok(reg.into_py(py));
         }
     }
-    // Create a fresh registry namespace
-    let registry = PyDict::new(py);
-    registry.set_item("systems", pyo3::types::PyList::empty(py))?;
-    registry.set_item("event_handlers", pyo3::types::PyList::empty(py))?;
-    registry.set_item("tick_handlers", pyo3::types::PyList::empty(py))?;
-    registry.set_item("init_handlers", pyo3::types::PyList::empty(py))?;
-    canopy.setattr("_registry", &registry)?;
+    // Create a fresh registry namespace using SimpleNamespace
+    let types = py.import("types")?;
+    let registry = types.getattr("SimpleNamespace")?.call0()?;
+    registry.setattr("systems", pyo3::types::PyList::empty(py))?;
+    registry.setattr("event_handlers", pyo3::types::PyList::empty(py))?;
+    registry.setattr("tick_handlers", pyo3::types::PyList::empty(py))?;
+    registry.setattr("init_handlers", pyo3::types::PyList::empty(py))?;
+    canopy.setattr("_registry", registry)?;
     Ok(registry.into_py(py))
 }

@@ -10,11 +10,12 @@ use wgpu::{
 pub struct RenderContext {
     pub instance: Instance,
     pub adapter: Adapter,
-    pub device: Device,
-    pub queue: Queue,
+    pub device: std::sync::Arc<Device>,
+    pub queue: std::sync::Arc<Queue>,
     pub surface: Option<Surface<'static>>,
     pub surface_config: Option<SurfaceConfiguration>,
     pub surface_format: TextureFormat,
+    pub depth_view: Option<wgpu::TextureView>,
 }
 
 impl RenderContext {
@@ -64,6 +65,9 @@ impl RenderContext {
             )
             .await
             .expect("Failed to create wgpu device");
+            
+        let device = std::sync::Arc::new(device);
+        let queue = std::sync::Arc::new(queue);
 
         // Configure the surface if it exists
         let mut surface_config = None;
@@ -83,8 +87,8 @@ impl RenderContext {
             let config = wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 format: surface_format,
-                width: window.logical_size.0,
-                height: window.logical_size.1,
+                width: window.physical_size.0,
+                height: window.physical_size.1,
                 present_mode: if window.config.vsync {
                     wgpu::PresentMode::Fifo
                 } else {
@@ -98,8 +102,14 @@ impl RenderContext {
             surface.configure(&device, &config);
             surface_config = Some(config);
             
-            info!("Surface configured: {}x{} ({:?})", window.logical_size.0, window.logical_size.1, surface_format);
+            info!("Surface configured: {}x{} ({:?})", window.physical_size.0, window.physical_size.1, surface_format);
         }
+
+        let depth_view = if !window.config.headless {
+            Some(Self::create_depth_view(&device, window.physical_size.0, window.physical_size.1))
+        } else {
+            None
+        };
 
         Self {
             instance,
@@ -109,6 +119,7 @@ impl RenderContext {
             surface,
             surface_config,
             surface_format,
+            depth_view,
         }
     }
 
@@ -121,8 +132,29 @@ impl RenderContext {
                 if let Some(surface) = &self.surface {
                     surface.configure(&self.device, config);
                 }
+                self.depth_view = Some(Self::create_depth_view(&self.device, new_width, new_height));
             }
         }
+    }
+
+    fn create_depth_view(device: &Device, width: u32, height: u32) -> wgpu::TextureView {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let desc = wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        };
+        let texture = device.create_texture(&desc);
+        texture.create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     /// Get the next frame from the surface.
