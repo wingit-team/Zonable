@@ -23,6 +23,7 @@
 //! 6. On shutdown: flush command buffers, drop all resources
 
 use crate::config::EngineConfig;
+use crate::camera_controller::{free_fly_camera_system, FreeFlyCameraState};
 use crate::frame::FrameTimer;
 use crate::plugin::Plugin;
 use crate::stage::AppStage;
@@ -170,6 +171,9 @@ impl CanopyApp {
         camera.position = glam::Vec3::new(3.0, 3.0, 3.0);
         camera.forward = (glam::Vec3::ZERO - camera.position).normalize();
         self.world.insert_resource(camera);
+        self.world.insert_resource(FreeFlyCameraState::default());
+
+        self.add_fn_system(AppStage::PreUpdate, "free_fly_camera_system", free_fly_camera_system);
         
         // Add render system if not already present
         self.add_fn_system(AppStage::Render, "render_system", render_system);

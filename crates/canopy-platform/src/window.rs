@@ -26,9 +26,9 @@ use crate::input::{InputState, KeyCode, MouseButton};
 use glam::Vec2;
 use tracing::info;
 use winit::{
-    event::{ElementState, Event, MouseScrollDelta, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
-    window::{Window, WindowBuilder},
+    window::{CursorGrabMode, Window, WindowBuilder},
 };
 
 /// Configuration for window creation.
@@ -80,6 +80,7 @@ pub struct PlatformWindow {
     pending_events: Vec<CanopyEvent>,
     pub logical_size: (u32, u32),
     pub physical_size: (u32, u32),
+    last_mouse_position: Option<Vec2>,
 }
 
 impl PlatformWindow {
@@ -119,7 +120,14 @@ impl PlatformWindow {
             inner,
             input: InputState::new(),
             pending_events: Vec::new(),
+            last_mouse_position: None,
         };
+
+        if let Some(window) = platform.inner.as_ref() {
+            let _ = window.set_cursor_grab(CursorGrabMode::Locked)
+                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
+            window.set_cursor_visible(false);
+        }
 
         (platform, event_loop)
     }
@@ -132,6 +140,12 @@ impl PlatformWindow {
         match event {
             Event::WindowEvent { event, .. } => {
                 self.translate_window_event(event)
+            }
+            Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
+                let d = Vec2::new(delta.0 as f32, delta.1 as f32);
+                self.input.accumulate_mouse_delta(d);
+                self.pending_events.push(CanopyEvent::MouseDelta { delta: d });
+                false
             }
             Event::AboutToWait => {
                 false
@@ -156,6 +170,16 @@ impl PlatformWindow {
                 false
             }
             WindowEvent::Focused(focused) => {
+                if let Some(window) = self.inner.as_ref() {
+                    if focused {
+                        let _ = window.set_cursor_grab(CursorGrabMode::Locked)
+                            .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
+                        window.set_cursor_visible(false);
+                    } else {
+                        let _ = window.set_cursor_grab(CursorGrabMode::None);
+                        window.set_cursor_visible(true);
+                    }
+                }
                 self.pending_events.push(CanopyEvent::WindowFocusChanged { focused });
                 false
             }
@@ -178,6 +202,10 @@ impl PlatformWindow {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Vec2::new(position.x as f32, position.y as f32);
+                if let Some(prev) = self.last_mouse_position {
+                    self.input.accumulate_mouse_delta(pos - prev);
+                }
+                self.last_mouse_position = Some(pos);
                 self.input.set_mouse_position(pos);
                 self.pending_events.push(CanopyEvent::MouseMoved { position: pos });
                 false

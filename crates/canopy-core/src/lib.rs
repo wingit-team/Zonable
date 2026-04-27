@@ -24,6 +24,7 @@
 //! ```
 
 pub mod app;
+pub mod camera_controller;
 pub mod config;
 pub mod frame;
 pub mod plugin;
