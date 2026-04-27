@@ -134,14 +134,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(t_albedo, s_albedo, in.uv);
     let albedo = tex_color * mat_uniforms.base_color;
 
-    // Cel-shaded sunlight with stronger warm tint so lighting changes are obvious.
+    // Cel-shaded sunlight with high contrast so face lighting is clearly visible.
     let light_dir = normalize(-camera.sun_direction.xyz);
-    let ndotl = max(dot(face_normal, light_dir), 0.0);
+    let ndotl = max(dot(geom_normal, light_dir), 0.0);
     let steps = max(camera.cel_params.x, 1.0);
     let cel = floor(ndotl * steps) / steps;
-    let ambient = albedo.rgb * 0.20;
+    let ambient = albedo.rgb * 0.08;
     let sun_tint = vec3<f32>(1.15, 1.0, 0.82);
-    let diffuse = albedo.rgb * sun_tint * (0.06 + cel * 1.25);
+    let diffuse = albedo.rgb * sun_tint * (0.02 + cel * 1.45);
     let lit = ambient + diffuse;
 
     let fog_density = max(camera.fog_params.x, 0.0);

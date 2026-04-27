@@ -184,6 +184,7 @@ impl CanopyApp {
         let mut world = self.world;
         let mut scheduler = self.scheduler;
         let mut system_info = SysinfoSystem::new_all();
+        let mut device_events_enabled = false;
         let cpu_name = system_info
             .cpus()
             .first()
@@ -193,6 +194,10 @@ impl CanopyApp {
         event_loop.run(move |event, target| {
             use winit::event_loop::ControlFlow;
             target.set_control_flow(ControlFlow::Poll);
+            if !device_events_enabled {
+                target.listen_device_events(winit::event_loop::DeviceEvents::Always);
+                device_events_enabled = true;
+            }
 
             if platform.handle_winit_event(event) {
                 info!("Shutdown requested");
