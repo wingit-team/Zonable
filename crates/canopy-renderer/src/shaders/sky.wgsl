@@ -50,7 +50,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let far_world_h = camera.inv_view_proj * far_clip;
     let near_world = near_world_h.xyz / near_world_h.w;
     let far_world = far_world_h.xyz / far_world_h.w;
-    let ray_dir = normalize(far_world - near_world);
+    let ray_dir = normalize(near_world - far_world);
 
     let up_amount = clamp(ray_dir.y * 0.5 + 0.5, 0.0, 1.0);
     var sky = mix(camera.sky_horizon_color.rgb, camera.sky_top_color.rgb, up_amount);
@@ -58,9 +58,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Strong visible sun disk in sky.
     var sun_dir = normalize(-camera.sun_direction.xyz);
     sun_dir = normalize(vec3<f32>(sun_dir.x, abs(sun_dir.y), sun_dir.z));
+    if dot(ray_dir, sun_dir) < 0.0 {
+        // Keep the visible sun in front of the camera when the configured
+        // direction points behind view.
+        sun_dir = normalize(vec3<f32>(sun_dir.x, sun_dir.y, -sun_dir.z));
+    }
     let sun_dot = max(dot(ray_dir, sun_dir), 0.0);
-    let sun_core = smoothstep(0.9985, 1.0, sun_dot);
-    let sun_halo = smoothstep(0.965, 1.0, sun_dot) * 0.25;
+    let sun_core = smoothstep(0.992, 1.0, sun_dot);
+    let sun_halo = smoothstep(0.93, 1.0, sun_dot) * 0.35;
     sky += vec3<f32>(1.3, 1.15, 0.9) * (sun_core + sun_halo);
 
     return vec4<f32>(sky, 1.0);

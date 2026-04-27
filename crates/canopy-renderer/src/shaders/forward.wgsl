@@ -91,6 +91,10 @@ struct MaterialUniforms {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let geom_base = normalize(cross(dpdx(in.world_pos), dpdy(in.world_pos)));
+    let view_to_render = normalize(camera.position.xyz - in.world_pos);
+    let geom_normal = select(-geom_base, geom_base, dot(geom_base, view_to_render) >= 0.0);
+
     // Build a stable faceted normal from the dominant interpolated normal axis.
     let smooth_normal = normalize(in.world_normal);
     let abs_n = abs(smooth_normal);
@@ -101,6 +105,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         face_normal = vec3<f32>(0.0, sign(smooth_normal.y), 0.0);
     } else {
         face_normal = vec3<f32>(0.0, 0.0, sign(smooth_normal.z));
+    }
+    if length(in.world_normal) < 0.001 {
+        face_normal = geom_normal;
     }
 
     if camera.pass_flags.x > 0.5 {
@@ -119,7 +126,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         let view_to_main = normalize(camera.main_position.xyz - in.world_pos);
-        if dot(face_normal, view_to_main) <= 0.0 {
+        if dot(geom_normal, view_to_main) <= 0.0 {
             discard;
         }
     }
