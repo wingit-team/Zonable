@@ -40,6 +40,7 @@ struct InstanceInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
+    @builtin(front_facing) is_front: bool,
     @location(0) world_normal: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
@@ -91,26 +92,34 @@ struct MaterialUniforms {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let geom_base = normalize(cross(dpdx(in.world_pos), dpdy(in.world_pos)));
-    let view_to_render = normalize(camera.position.xyz - in.world_pos);
-    let geom_normal = select(-geom_base, geom_base, dot(geom_base, view_to_render) >= 0.0);
+    let tex_color = textureSample(t_albedo, s_albedo, in.uv);
+    let albedo = tex_color * mat_uniforms.base_color;
 
-    // Build a stable faceted normal from the dominant interpolated normal axis.
+    // Smooth normal for lighting
     let smooth_normal = normalize(in.world_normal);
-    let abs_n = abs(smooth_normal);
-    var face_normal = vec3<f32>(0.0, 1.0, 0.0);
-    if abs_n.x >= abs_n.y && abs_n.x >= abs_n.z {
-        face_normal = vec3<f32>(sign(smooth_normal.x), 0.0, 0.0);
-    } else if abs_n.y >= abs_n.z {
-        face_normal = vec3<f32>(0.0, sign(smooth_normal.y), 0.0);
-    } else {
-        face_normal = vec3<f32>(0.0, 0.0, sign(smooth_normal.z));
-    }
-    if length(in.world_normal) < 0.001 {
-        face_normal = geom_normal;
-    }
+    let light_dir = normalize(-camera.sun_direction.xyz);
+    let ndotl = max(dot(smooth_normal, light_dir), 0.0);
+    let steps = max(camera.cel_params.x, 1.0);
+    let cel = floor(ndotl * steps) / steps;
+    let ambient = albedo.rgb * 0.08;
+    let sun_tint = vec3<f32>(1.15, 1.0, 0.82);
+    let diffuse = albedo.rgb * sun_tint * (0.02 + cel * 1.45);
+    let lit = ambient + diffuse;
 
+    let fog_density = max(camera.fog_params.x, 0.0);
+    let fog_start = max(camera.fog_params.y, 0.0);
+    let fog_distance = max(in.view_distance - fog_start, 0.0);
+    let fog_factor = 1.0 - exp(-fog_density * fog_distance);
+    let fogged = mix(lit, camera.fog_color.rgb, fog_factor);
+
+    let mapped = fogged / (fogged + vec3<f32>(1.0));
+
+    // Secondary pass flags (debug camera) - we need the faceted normal for this
     if camera.pass_flags.x > 0.5 {
+        let geom_base = normalize(cross(dpdx(in.world_pos), dpdy(in.world_pos)));
+        let view_to_render = normalize(camera.position.xyz - in.world_pos);
+        let geom_normal = select(-geom_base, geom_base, dot(geom_base, view_to_render) >= 0.0);
+
         let to_frag = in.world_pos - camera.main_position.xyz;
         let depth = dot(to_frag, camera.main_forward.xyz);
         if depth < camera.main_fov_aspect.z || depth > camera.main_fov_aspect.w {
@@ -130,27 +139,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             discard;
         }
     }
-
-    let tex_color = textureSample(t_albedo, s_albedo, in.uv);
-    let albedo = tex_color * mat_uniforms.base_color;
-
-    // Cel-shaded sunlight with high contrast so face lighting is clearly visible.
-    let light_dir = normalize(-camera.sun_direction.xyz);
-    let ndotl = max(dot(geom_normal, light_dir), 0.0);
-    let steps = max(camera.cel_params.x, 1.0);
-    let cel = floor(ndotl * steps) / steps;
-    let ambient = albedo.rgb * 0.08;
-    let sun_tint = vec3<f32>(1.15, 1.0, 0.82);
-    let diffuse = albedo.rgb * sun_tint * (0.02 + cel * 1.45);
-    let lit = ambient + diffuse;
-
-    let fog_density = max(camera.fog_params.x, 0.0);
-    let fog_start = max(camera.fog_params.y, 0.0);
-    let fog_distance = max(in.view_distance - fog_start, 0.0);
-    let fog_factor = 1.0 - exp(-fog_density * fog_distance);
-    let fogged = mix(lit, camera.fog_color.rgb, fog_factor);
-
-    let mapped = fogged / (fogged + vec3<f32>(1.0));
 
     return vec4<f32>(mapped, 1.0);
 }

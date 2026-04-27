@@ -1,74 +1,64 @@
 use canopy_ecs::world::World;
-use canopy_platform::input::{InputState, KeyCode};
+use canopy_platform::input::InputState;
 
 #[derive(Debug, Clone)]
-pub struct FreeFlyCameraState {
+pub struct OrbitCameraState {
+    pub target: glam::Vec3,
+    pub distance: f32,
     pub yaw: f32,
     pub pitch: f32,
-    pub move_speed: f32,
-    pub look_sensitivity: f32,
 }
 
-impl Default for FreeFlyCameraState {
+impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
+            target: glam::Vec3::ZERO,
+            distance: 5.0,
             yaw: -std::f32::consts::FRAC_PI_2,
             pitch: -0.45,
-            move_speed: 8.0,
-            look_sensitivity: 0.0018,
         }
     }
 }
 
-pub fn free_fly_camera_system(world: &mut World, dt: f64) {
+pub fn orbit_camera_system(world: &mut World, _dt: f64) {
     let input = match world.get_resource::<InputState>() {
         Some(i) => i.clone(),
         None => return,
     };
 
-    let state = world
-        .get_resource_mut::<FreeFlyCameraState>()
-        .map(|s| {
-            let mouse = input.mouse_delta();
-            s.yaw -= mouse.x * s.look_sensitivity;
-            s.pitch = (s.pitch - mouse.y * s.look_sensitivity).clamp(-1.54, 1.54);
-            s.clone()
-        })
-        .unwrap_or_default();
-
-    let Some(camera) = world.get_resource_mut::<canopy_renderer::Camera>() else {
-        return;
+    // Acquire mutable state and update based on input
+    let (target, distance, yaw, pitch) = {
+        let mut state = match world.get_resource_mut::<OrbitCameraState>() {
+            Some(s) => s,
+            None => return,
+        };
+        // Mouse drag to orbit (using left mouse button)
+        let mouse = input.mouse_delta();
+        if input.mouse_held(canopy_platform::input::MouseButton::Left) {
+            state.yaw -= mouse.x * 0.005; // sensitivity
+            state.pitch = (state.pitch - mouse.y * 0.005).clamp(-1.54, 1.54);
+        }
+        // Scroll to zoom
+        let scroll = input.scroll_delta();
+        state.distance = (state.distance - scroll.y * 0.05).max(1.0).max(0.1);
+        // Copy values for later use
+        (state.target, state.distance, state.yaw, state.pitch)
     };
 
-    let (sin_yaw, cos_yaw) = state.yaw.sin_cos();
-    let (sin_pitch, cos_pitch) = state.pitch.sin_cos();
-    let forward = glam::Vec3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw)
-        .normalize_or_zero();
-    let right = forward.cross(glam::Vec3::Y).normalize_or_zero();
+    // Acquire mutable camera reference
+    let camera = match world.get_resource_mut::<canopy_renderer::Camera>() {
+        Some(c) => c,
+        None => return,
+    };
 
-    let mut direction = glam::Vec3::ZERO;
-    if input.key_held(KeyCode::W) {
-        direction += forward;
-    }
-    if input.key_held(KeyCode::S) {
-        direction -= forward;
-    }
-    if input.key_held(KeyCode::A) {
-        direction -= right;
-    }
-    if input.key_held(KeyCode::D) {
-        direction += right;
-    }
-    if input.key_held(KeyCode::Space) {
-        direction += glam::Vec3::Y;
-    }
-    if input.key_held(KeyCode::LeftShift) || input.key_held(KeyCode::RightShift) {
-        direction -= glam::Vec3::Y;
-    }
-
-    let direction = direction.normalize_or_zero();
-    camera.position += direction * (state.move_speed * dt as f32);
-    camera.forward = forward;
-    camera.up = glam::Vec3::Y;
+    // Calculate camera position based on spherical coordinates
+    let offset = glam::Vec3::new(
+        distance * pitch.cos() * yaw.cos(),
+        distance * pitch.sin(),
+        distance * pitch.cos() * yaw.sin(),
+    );
+    camera.position = target + offset;
+    camera.forward = (target - camera.position).normalize_or_zero();
+    camera.up = glam::Vec3::Y; // Keep up as Y for simplicity
 }
 

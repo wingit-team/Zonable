@@ -31,6 +31,7 @@ pub mod plugin;
 pub mod stage;
 
 pub use app::CanopyApp;
+pub use camera_controller::OrbitCameraState;
 pub use config::EngineConfig;
 pub use frame::FrameData;
 pub use plugin::Plugin;
