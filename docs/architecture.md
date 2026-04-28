@@ -63,12 +63,16 @@ A hybrid deferred/forward renderer built on `wgpu`.
 - **Terrain**: Noise-based Fbm Perlin terrain generation integrated into the streaming pipeline.
 - **Zone Map**: A sparse spatial grid for city zoning, enabling fast radius queries for disaster impact and economic influence.
 
-## Lifecycle of a Frame
+## Lifecycle of a Frame (Event Loop)
 
-1.  **Pre-Update**: OS events (input, window) are polled and translated to `CanopyEvent`.
-2.  **Sim-Tick (Heartbeat)**: If the heartbeat timer (e.g., 4Hz) fires, simulation systems (Economics, Population, Long-term logic) run.
-3.  **Update**: Main game logic systems run. `ScriptRunner` executes Python systems here.
-4.  **Post-Update**: Transform hierarchies are updated; camera culling and LoD selection occurs.
-5.  **Render Extraction**: Data is "extracted" from the ECS World into renderer-local buffers to minimize GIL contention and allow parallel draw call submission.
-6.  **Render**: `canopy-renderer` submits draw calls to the GPU via `wgpu`.
-7.  **Post-Render**: Profiling data is flushed; frame-end cleanup.
+Canopy uses a **RedrawRequested-driven update loop** (via `winit`) to ensure smooth frame pacing and synchronization with the OS display link.
+
+1.  **Event Processing**: OS events (input, window) are polled and translated to `CanopyEvent`.
+2.  **Redraw Request**: When the event queue is empty (`AboutToWait`), the engine calls `window.request_redraw()`.
+3.  **Frame Update (on RedrawRequested)**:
+    - **Sim-Tick (Heartbeat)**: If the heartbeat timer fires, simulation systems run.
+    - **Update**: Main game logic systems run (including Python scripts).
+    - **Post-Update**: Transform hierarchies, camera, and culling are updated.
+    - **Render Extraction**: Data is moved to renderer-local buffers.
+    - **Render**: `canopy-renderer` executes the hybrid pipeline via `wgpu`.
+4.  **Post-Render**: Profiling data is flushed; frame-end input snapshots are taken.

@@ -199,9 +199,24 @@ impl CanopyApp {
                 device_events_enabled = true;
             }
 
+            let is_redraw = matches!(event, winit::event::Event::WindowEvent { event: winit::event::WindowEvent::RedrawRequested, .. });
+            let is_about_to_wait = matches!(event, winit::event::Event::AboutToWait);
+
             if platform.handle_winit_event(event) {
                 info!("Shutdown requested");
                 target.exit();
+                return;
+            }
+
+            // Always request a redraw when the event queue empties
+            if is_about_to_wait {
+                if let Some(window) = platform.raw_window_handle() {
+                    window.request_redraw();
+                }
+            }
+
+            // Only run the frame tick + rendering on an actual OS redraw request
+            if !is_redraw {
                 return;
             }
 
@@ -250,7 +265,6 @@ impl CanopyApp {
 
             // Run all systems
             scheduler.run_all(&mut world, dt);
-
 
             // Snapshot current input as previous-frame input only after systems run.
             platform.end_frame();

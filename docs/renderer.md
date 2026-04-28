@@ -38,7 +38,8 @@ Canopy uses **WGSL** (WebGPU Shading Language) for cross-platform compatibility.
 - `gbuffer.wgsl`: Outputting `pos`, `norm`, `mat`.
 - `lighting.wgsl`: PBR calculation with Cook-Torrance BRDF.
 - `forward.wgsl`: Standard alpha-blending pass.
+- `sky.wgsl`: Procedural sky with sun disk, matching the engine's `sun_direction`.
 
 ## Coordinate System
 - **Right-Handed**: +X right, +Y up, -Z forward (matches `glam` defaults).
-- **Reversed-Z**: Uses a floating-point depth buffer with reversed range (1.0 to 0.0) for significantly improved depth precision at long distances.
+- **Reversed-Z**: Uses a floating-point depth buffer with reversed range (1.0 to 0.0) for significantly improved depth precision at long distances. Note: This requires inverting ray directions in full-screen passes (like `sky.wgsl`) since `near_world` (depth 1.0) is in front of `far_world` (depth 0.0).

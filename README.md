@@ -150,6 +150,13 @@ If `F3` is intercepted by macOS, use the grave key (`) as a fallback debug modif
 
 Pane toggles are exclusive by design: enabling one pane replaces the previous pane.
 
+## Recent Stability & Rendering Fixes (v0.1.2)
+- **Frame Pacing**: Migrated engine update loop to `RedrawRequested` to eliminate camera stuttering and sync with display refresh rate.
+- **Input Unification**: Unified `DeviceEvent` and `WindowEvent` mouse handling to fix double-accumulation choppiness.
+- **Flat Shading Fallback**: Implemented mesh un-indexing in `canopy-pipeline` to ensure correct face normals for hard-edge geometry (like cubes) when source data lacks normals.
+- **Sun Alignment**: Fixed inverted ray-tracing in `sky.wgsl` caused by Reversed-Z depth, aligning the visible sun disk with actual scene lighting.
+- **Cursor Toggle**: Added `Escape` to release cursor and `Click` to re-grab for a better developer experience.
+
 ## License
 
 Proprietary — All Rights Reserved. Wingit Team.

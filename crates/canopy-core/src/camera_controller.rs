@@ -32,10 +32,10 @@ pub fn orbit_camera_system(world: &mut World, _dt: f64) {
             Some(s) => s,
             None => return,
         };
-        // Mouse drag to orbit (using left mouse button)
+        // Mouse motion always orbits — no button hold required.
         let mouse = input.mouse_delta();
-        if input.mouse_held(canopy_platform::input::MouseButton::Left) {
-            state.yaw -= mouse.x * 0.005; // sensitivity
+        if mouse.x != 0.0 || mouse.y != 0.0 {
+            state.yaw -= mouse.x * 0.005;
             state.pitch = (state.pitch - mouse.y * 0.005).clamp(-1.54, 1.54);
         }
         // Scroll to zoom

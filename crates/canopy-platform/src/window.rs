@@ -81,6 +81,8 @@ pub struct PlatformWindow {
     pub logical_size: (u32, u32),
     pub physical_size: (u32, u32),
     last_mouse_position: Option<Vec2>,
+    /// Whether the cursor is currently captured (grabbed + hidden).
+    pub cursor_grabbed: bool,
 }
 
 impl PlatformWindow {
@@ -113,7 +115,7 @@ impl PlatformWindow {
 
         let physical_size = inner.as_ref().map(|w| (w.inner_size().width, w.inner_size().height)).unwrap_or((config.width, config.height));
 
-        let platform = Self {
+        let mut platform = Self {
             logical_size: (config.width, config.height),
             physical_size,
             config,
@@ -121,13 +123,12 @@ impl PlatformWindow {
             input: InputState::new(),
             pending_events: Vec::new(),
             last_mouse_position: None,
+            cursor_grabbed: false,
         };
 
-        if let Some(window) = platform.inner.as_ref() {
-            let _ = window.set_cursor_grab(CursorGrabMode::Locked)
-                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
-            window.set_cursor_visible(false);
-        }
+        // Do not grab cursor on startup — the user controls capture via
+        // mouse click (grab) and Escape (release).
+        // platform.set_cursor_grabbed(true);  // uncomment to start grabbed
 
         (platform, event_loop)
     }
@@ -170,12 +171,13 @@ impl PlatformWindow {
                 false
             }
             WindowEvent::Focused(focused) => {
-                if let Some(window) = self.inner.as_ref() {
-                    if focused {
-                        let _ = window.set_cursor_grab(CursorGrabMode::Locked)
-                            .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
-                        window.set_cursor_visible(false);
-                    } else {
+                if focused && self.cursor_grabbed {
+                    // Re-apply grab on focus regain only if we were grabbed before.
+                    self.set_cursor_grabbed(true);
+                } else if !focused {
+                    // Always release the OS grab when we lose focus so the
+                    // user can interact with other windows.
+                    if let Some(window) = self.inner.as_ref() {
                         let _ = window.set_cursor_grab(CursorGrabMode::None);
                         window.set_cursor_visible(true);
                     }
@@ -190,6 +192,10 @@ impl PlatformWindow {
                 let modifiers = Modifiers::default(); // TODO: track modifier state
                 match event.state {
                     ElementState::Pressed => {
+                        // Escape releases cursor capture.
+                        if key == KeyCode::Escape && self.cursor_grabbed {
+                            self.set_cursor_grabbed(false);
+                        }
                         self.input.set_key(key, true);
                         self.pending_events.push(CanopyEvent::KeyPressed { key, modifiers });
                     }
@@ -202,9 +208,9 @@ impl PlatformWindow {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Vec2::new(position.x as f32, position.y as f32);
-                if let Some(prev) = self.last_mouse_position {
-                    self.input.accumulate_mouse_delta(pos - prev);
-                }
+                // Only track position here — do NOT accumulate delta from
+                // CursorMoved. Raw deltas come from DeviceEvent::MouseMotion
+                // which is already handled. Double-accumulating causes choppiness.
                 self.last_mouse_position = Some(pos);
                 self.input.set_mouse_position(pos);
                 self.pending_events.push(CanopyEvent::MouseMoved { position: pos });
@@ -215,6 +221,10 @@ impl PlatformWindow {
                 match state {
                     ElementState::Pressed => {
                         self.input.set_mouse_button(btn, true);
+                        // Re-capture cursor on any mouse click if not already grabbed.
+                        if !self.cursor_grabbed {
+                            self.set_cursor_grabbed(true);
+                        }
                         self.pending_events.push(CanopyEvent::MouseButtonPressed { button: btn });
                     }
                     ElementState::Released => {
@@ -250,6 +260,24 @@ impl PlatformWindow {
     /// Raw window handle for wgpu surface creation.
     pub fn raw_window_handle(&self) -> Option<std::sync::Arc<Window>> {
         self.inner.clone()
+    }
+
+    /// Grab or release the OS cursor.
+    ///
+    /// When grabbed: cursor is locked/confined and hidden (good for camera look).
+    /// When released: cursor is visible and free (good for UI interaction).
+    pub fn set_cursor_grabbed(&mut self, grabbed: bool) {
+        self.cursor_grabbed = grabbed;
+        if let Some(window) = self.inner.as_ref() {
+            if grabbed {
+                let _ = window.set_cursor_grab(CursorGrabMode::Locked)
+                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
+                window.set_cursor_visible(false);
+            } else {
+                let _ = window.set_cursor_grab(CursorGrabMode::None);
+                window.set_cursor_visible(true);
+            }
+        }
     }
 }
 

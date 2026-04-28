@@ -195,12 +195,42 @@ class LodGenerator:
                                 vert_uvs.append(uvs_src[v[1]] if v[1] >= 0 and v[1] < len(uvs_src) else (0.0, 0.0))
                             indices.append(vert_cache[key])
 
-        return MeshData(
+        # If the OBJ had no vertex normals (vn), compute face normals from
+        # triangle cross products. This is the common case for simple meshes
+        # like cube.obj — without this every vertex gets the default (0,1,0)
+        # and shading is completely wrong.
+        has_normals = len(normals_src) > 0
+
+        mesh = MeshData(
             vertices=np.array(vert_positions, dtype=np.float32),
             normals=np.array(vert_normals, dtype=np.float32),
             uvs=np.array(vert_uvs, dtype=np.float32),
             indices=np.array(indices, dtype=np.uint32),
         )
+
+        if not has_normals and len(mesh.vertices) >= 3 and len(mesh.indices) >= 3:
+            # Compute per-face normals from edge cross products
+            tris = mesh.indices.reshape(-1, 3)
+            v0 = mesh.vertices[tris[:, 0]]
+            v1 = mesh.vertices[tris[:, 1]]
+            v2 = mesh.vertices[tris[:, 2]]
+            cross = np.cross(v1 - v0, v2 - v0).astype(np.float32)
+            # Normalize each face normal
+            lengths = np.linalg.norm(cross, axis=1, keepdims=True)
+            cross /= np.maximum(lengths, 1e-6)
+            
+            # Un-index the mesh to ensure flat shading for hard edges.
+            # Duplicating vertices so each face has unique vertices with correct normals.
+            new_verts = mesh.vertices[mesh.indices]
+            new_uvs = mesh.uvs[mesh.indices]
+            new_normals = np.repeat(cross, 3, axis=0)
+            
+            mesh.vertices = new_verts
+            mesh.uvs = new_uvs
+            mesh.normals = new_normals
+            mesh.indices = np.arange(len(new_verts), dtype=np.uint32)
+
+        return mesh
 
     def _parse_face_vert(self, s: str) -> tuple[int, int, int]:
         """Parse OBJ face vertex 'v/vt/vn' → (pos_idx, uv_idx, norm_idx) (0-based)."""
