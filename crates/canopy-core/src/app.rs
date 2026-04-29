@@ -41,6 +41,7 @@ use canopy_renderer::{
     RenderEnvironment,
     system::render_system,
 };
+use canopy_physics::{PhysicsWorld, system::physics_sync_system};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use sysinfo::System as SysinfoSystem;
@@ -172,8 +173,10 @@ impl CanopyApp {
         camera.forward = (glam::Vec3::ZERO - camera.position).normalize();
         self.world.insert_resource(camera);
         self.world.insert_resource(OrbitCameraState::default());
+        self.world.insert_resource(PhysicsWorld::new());
 
         self.add_fn_system(AppStage::PreUpdate, "orbit_camera_system", orbit_camera_system);
+        self.add_fn_system(AppStage::Update, "physics_sync_system", physics_sync_system);
         
         // Add render system if not already present
         self.add_fn_system(AppStage::Render, "render_system", render_system);

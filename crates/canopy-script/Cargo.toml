@@ -18,6 +18,7 @@ canopy-sim     = { path = "../canopy-sim" }
 canopy-world   = { path = "../canopy-world" }
 canopy-platform = { path = "../canopy-platform" }
 canopy-renderer = { path = "../canopy-renderer" }
+canopy-physics  = { path = "../canopy-physics" }
 
 pyo3 = { workspace = true }
 glam = { workspace = true }

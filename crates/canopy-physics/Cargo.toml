@@ -7,6 +7,7 @@ license = "LicenseRef-Proprietary"
 
 [dependencies]
 canopy-ecs = { path = "../canopy-ecs" }
+canopy-renderer = { path = "../canopy-renderer" }
 
 rapier3d = { workspace = true }
 glam     = { workspace = true }

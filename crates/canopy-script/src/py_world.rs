@@ -95,6 +95,8 @@ impl PyWorld {
         // We do this BEFORE with_world to avoid borrow issues if possible, though extract is safe.
         let mut rust_transform = None;
         let mut rust_mesh = None;
+        let mut rust_rb = None;
+        let mut rust_collider = None;
 
         if let Ok(py_t) = py_comp.extract::<crate::components::PyTransform>(py) {
             rust_transform = Some(canopy_renderer::Transform {
@@ -106,6 +108,20 @@ impl PyWorld {
             rust_mesh = Some(canopy_renderer::MeshRef {
                 asset: py_m.asset.clone(),
             });
+        } else if let Ok(py_rb) = py_comp.extract::<crate::components::PyRigidBody>(py) {
+            rust_rb = Some(canopy_physics::components::RigidBodyDesc {
+                body_type: if py_rb.body_type == "fixed" {
+                    canopy_physics::components::RigidBodyType::Fixed
+                } else {
+                    canopy_physics::components::RigidBodyType::Dynamic
+                },
+            });
+        } else if let Ok(py_col) = py_comp.extract::<crate::components::PyCollider>(py) {
+            rust_collider = Some(canopy_physics::components::ColliderDesc {
+                shape: canopy_physics::components::ColliderShape::Cuboid {
+                    half_extents: py_col.half_extents.inner,
+                },
+            });
         }
 
         let type_name = py_comp.as_ref(py).get_type().name()?.to_string();
@@ -116,6 +132,12 @@ impl PyWorld {
             }
             if let Some(m) = rust_mesh {
                 w.insert(entity_id, m);
+            }
+            if let Some(rb) = rust_rb {
+                w.insert(entity_id, rb);
+            }
+            if let Some(col) = rust_collider {
+                w.insert(entity_id, col);
             }
 
             // Keep Python-side components by type so entities can have Transform + Mesh + etc.

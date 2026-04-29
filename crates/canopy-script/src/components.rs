@@ -160,6 +160,55 @@ impl PyZone {
 }
 
 // ---------------------------------------------------------------------------
+// Physics
+// ---------------------------------------------------------------------------
+
+#[pyclass(name = "RigidBody")]
+#[derive(Debug, Clone)]
+pub struct PyRigidBody {
+    #[pyo3(get, set)]
+    pub body_type: String,
+}
+
+#[pymethods]
+impl PyRigidBody {
+    #[new]
+    #[pyo3(signature = (body_type="dynamic".to_string()))]
+    pub fn new(body_type: String) -> Self {
+        Self { body_type }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RigidBody(type='{}')", self.body_type)
+    }
+}
+
+#[pyclass(name = "Collider")]
+#[derive(Debug, Clone)]
+pub struct PyCollider {
+    #[pyo3(get, set)]
+    pub shape: String,
+    #[pyo3(get, set)]
+    pub half_extents: PyVec3,
+}
+
+#[pymethods]
+impl PyCollider {
+    #[new]
+    #[pyo3(signature = (shape="cuboid".to_string(), half_extents=None))]
+    pub fn new(shape: String, half_extents: Option<PyVec3>) -> Self {
+        Self {
+            shape,
+            half_extents: half_extents.unwrap_or(PyVec3 { inner: glam::Vec3::new(0.5, 0.5, 0.5) }),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Collider(shape='{}')", self.shape)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // CanopyApp Python entry
 // ---------------------------------------------------------------------------
 
@@ -168,5 +217,7 @@ pub fn register_components(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyMeshRef>()?;
     m.add_class::<PyBuildingData>()?;
     m.add_class::<PyZone>()?;
+    m.add_class::<PyRigidBody>()?;
+    m.add_class::<PyCollider>()?;
     Ok(())
 }

@@ -9,6 +9,7 @@ license = "LicenseRef-Proprietary"
 canopy-ecs      = { path = "../canopy-ecs" }
 canopy-platform = { path = "../canopy-platform" }
 canopy-assets   = { path = "../canopy-assets" }
+canopy-physics  = { path = "../canopy-physics" }
 
 glam = { workspace = true }
 winit = { workspace = true }

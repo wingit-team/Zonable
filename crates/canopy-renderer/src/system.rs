@@ -402,8 +402,7 @@ pub fn render_system(world: &mut World, _dt: f64) {
 
         draw_list(&mut rpass);
 
-        // Secondary debug camera (F3+W): draws from the same extracted render list,
-        // so it cannot reveal entities outside the main camera visibility set.
+        // Secondary debug camera (F3+W): draw in a separate render pass to avoid transparency blending
         if let Some(secondary_bg) = secondary_camera_bind_group.as_ref() {
             let (surface_w, surface_h) = surface_config
                 .as_ref()
@@ -413,15 +412,111 @@ pub fn render_system(world: &mut World, _dt: f64) {
             let panel_h = surface_h * 0.34;
             let panel_x = surface_w - panel_w - 16.0;
             let panel_y = surface_h - panel_h - 16.0;
-            rpass.set_viewport(panel_x, panel_y, panel_w, panel_h, 0.0, 1.0);
-            rpass.set_scissor_rect(panel_x as u32, panel_y as u32, panel_w as u32, panel_h as u32);
-            rpass.set_bind_group(0, secondary_bg, &[]);
-            draw_list(&mut rpass);
 
-            // Reset viewport/scissor for any future overlays.
-            rpass.set_viewport(0.0, 0.0, surface_w, surface_h, 0.0, 1.0);
-            rpass.set_scissor_rect(0, 0, surface_w as u32, surface_h as u32);
-            rpass.set_bind_group(0, &camera_bind_group, &[]);
+            drop(rpass); // Explicitly end the render pass
+            
+            let mut secondary_rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Secondary Camera Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            secondary_rpass.set_viewport(panel_x, panel_y, panel_w, panel_h, 0.0, 1.0);
+            secondary_rpass.set_scissor_rect(panel_x as u32, panel_y as u32, panel_w as u32, panel_h as u32);
+            secondary_rpass.set_pipeline(&pipeline.forward_pipeline);
+            secondary_rpass.set_bind_group(0, secondary_bg, &[]);
+
+            // Re-create material bind group for secondary pass
+            let white_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("White Texture"),
+                size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &white_tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &[255, 255, 255, 255],
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4),
+                    rows_per_image: Some(1),
+                },
+                wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            );
+            let white_view = white_tex.create_view(&wgpu::TextureViewDescriptor::default());
+            let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+            let mat_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Material Buffer"),
+                contents: bytemuck::cast_slice(&[1.0f32, 1.0, 1.0, 1.0, 0.5, 0.0, 0.0, 0.0]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+            let material_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Secondary Material Bind Group"),
+                layout: &pipeline.material_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&white_view) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
+                    wgpu::BindGroupEntry { binding: 2, resource: mat_buffer.as_entire_binding() },
+                ],
+            });
+            secondary_rpass.set_bind_group(1, &material_bind_group, &[]);
+
+            for (transform, mesh_ref) in &render_list {
+                let handle = asset_server.register(&mesh_ref.asset);
+
+                if let Err(e) = asset_server.load_sync(&mesh_ref.asset) {
+                    error!("render_system: failed to load {}: {:?}", mesh_ref.asset, e);
+                    continue;
+                }
+
+                if let Some(lods) = asset_server.get_lod_set(&handle) {
+                    if let Some(gpu_mesh) = gpu_resources.get_mesh(handle.id) {
+                        let model_matrix = glam::Mat4::from_scale_rotation_translation(
+                            transform.scale,
+                            transform.rotation,
+                            transform.position,
+                        );
+
+                        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("Instance Buffer"),
+                            contents: bytemuck::cast_slice(&model_matrix.to_cols_array()),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
+
+                        secondary_rpass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
+                        secondary_rpass.set_vertex_buffer(1, instance_buffer.slice(..));
+
+                        let index_format = if gpu_mesh.index_u32 {
+                            wgpu::IndexFormat::Uint32
+                        } else {
+                            wgpu::IndexFormat::Uint16
+                        };
+
+                        secondary_rpass.set_index_buffer(gpu_mesh.index_buffer.slice(..), index_format);
+                        secondary_rpass.draw_indexed(0..gpu_mesh.index_count, 0, 0..1);
+                        gpu_resources.mark_mesh_used(handle.id);
+                    }
+                }
+            }
         }
     }
 

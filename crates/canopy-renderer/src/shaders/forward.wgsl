@@ -98,12 +98,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let smooth_normal = normalize(in.world_normal);
     let light_dir = normalize(-camera.sun_direction.xyz);
     let ndotl = max(dot(smooth_normal, light_dir), 0.0);
+    
+    // Contact shadow approximation: reduce light on surfaces perpendicular to light
+    let light_facing = smoothstep(-0.3, 0.5, ndotl);
+    
+    // Cel shading with shadow influence
     let steps = max(camera.cel_params.x, 1.0);
-    let cel = floor(ndotl * steps) / steps;
-    let ambient = albedo.rgb * 0.08;
+    let cel_raw = floor(ndotl * steps) / steps;
+    let cel = cel_raw * light_facing;
+    
+    // Better ambient occlusion simulation based on normal direction
+    let ambient_factor = 0.15 + dot(smooth_normal, vec3<f32>(0.0, 1.0, 0.0)) * 0.05;
+    let ambient = albedo.rgb * ambient_factor;
+    
     let sun_tint = vec3<f32>(1.15, 1.0, 0.82);
-    let diffuse = albedo.rgb * sun_tint * (0.02 + cel * 1.45);
-    let lit = ambient + diffuse;
+    let diffuse = albedo.rgb * sun_tint * (0.05 + cel * 1.4);
+    
+    // Add subtle specular for PBR feel
+    let view_dir = normalize(camera.position.xyz - in.world_pos);
+    let halfway = normalize(light_dir + view_dir);
+    let spec_factor = pow(max(dot(smooth_normal, halfway), 0.0), 16.0 - mat_uniforms.roughness * 12.0);
+    let specular = vec3<f32>(0.5) * spec_factor * (1.0 - mat_uniforms.roughness) * light_facing;
+    
+    let lit = ambient + diffuse + specular;
 
     let fog_density = max(camera.fog_params.x, 0.0);
     let fog_start = max(camera.fog_params.y, 0.0);

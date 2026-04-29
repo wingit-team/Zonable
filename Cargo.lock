@@ -362,6 +362,7 @@ dependencies = [
  "anyhow",
  "canopy-assets",
  "canopy-ecs",
+ "canopy-physics",
  "canopy-platform",
  "canopy-renderer",
  "crossbeam-channel",
@@ -398,6 +399,7 @@ name = "canopy-physics"
 version = "0.1.0"
 dependencies = [
  "canopy-ecs",
+ "canopy-renderer",
  "glam",
  "parking_lot",
  "rapier3d",
@@ -442,6 +444,7 @@ dependencies = [
  "canopy-assets",
  "canopy-core",
  "canopy-ecs",
+ "canopy-physics",
  "canopy-platform",
  "canopy-renderer",
  "canopy-sim",
