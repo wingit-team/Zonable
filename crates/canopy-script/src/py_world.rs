@@ -199,6 +199,29 @@ impl PyWorld {
         0
     }
 
+    /// Get the main camera's forward vector.
+    pub fn get_camera_forward(&self) -> crate::py_math::PyVec3 {
+        with_world(|w| {
+            if let Some(cam) = w.get_resource::<canopy_renderer::Camera>() {
+                crate::py_math::PyVec3 { inner: cam.forward }
+            } else {
+                crate::py_math::PyVec3 { inner: glam::Vec3::NEG_Z }
+            }
+        })
+    }
+
+    /// Get the main camera's right vector.
+    pub fn get_camera_right(&self) -> crate::py_math::PyVec3 {
+        with_world(|w| {
+            if let Some(cam) = w.get_resource::<canopy_renderer::Camera>() {
+                let right = cam.forward.cross(cam.up).normalize_or_zero();
+                crate::py_math::PyVec3 { inner: right }
+            } else {
+                crate::py_math::PyVec3 { inner: glam::Vec3::X }
+            }
+        })
+    }
+
     fn __repr__(&self) -> String {
         let count = with_world(|w| w.entity_count());
         format!("<World entities={}>", count)

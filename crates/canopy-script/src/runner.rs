@@ -224,6 +224,8 @@ impl ScriptRunner {
         }
 
         Python::with_gil(|py| {
+            self.sync_rust_to_builtins(py, world);
+
             for system in &mut self.systems {
                 // Apply tick rate gating
                 let should_run = if system.tick_rate_hz == 0 {
@@ -260,6 +262,32 @@ impl ScriptRunner {
 
         crate::py_input::clear_active_input();
         clear_active_world();
+    }
+
+    /// Sync native Rust components back to Python builtins (run before Python ticks).
+    fn sync_rust_to_builtins(&self, py: Python<'_>, world: &mut World) {
+        let entities = world.query_filtered(&[
+            canopy_ecs::component::ComponentId::of::<crate::py_world::PythonComponentStore>(),
+        ]);
+
+        let mut updates = Vec::new();
+        for entity in entities {
+            if let Some(rust_t) = world.get::<canopy_renderer::Transform>(entity).copied() {
+                if let Some(store) = world.get::<crate::py_world::PythonComponentStore>(entity) {
+                    if let Some(obj) = store.components.get("Transform") {
+                        updates.push((obj.clone_ref(py), rust_t));
+                    }
+                }
+            }
+        }
+
+        for (obj, rust_t) in updates {
+            if let Ok(mut py_t) = obj.extract::<pyo3::PyRefMut<crate::components::PyTransform>>(py) {
+                py_t.position = crate::py_math::PyVec3 { inner: rust_t.position };
+                py_t.rotation = crate::py_math::PyQuat { inner: rust_t.rotation };
+                py_t.scale = crate::py_math::PyVec3 { inner: rust_t.scale };
+            }
+        }
     }
 
     /// Sync Python builtin components (Transform) back to native Rust components.

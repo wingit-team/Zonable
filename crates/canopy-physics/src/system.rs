@@ -25,6 +25,19 @@ pub fn physics_sync_system(world: &mut World, dt: f64) {
 
     let mut to_add_handles = Vec::new();
 
+    // 2.5 Gather ECS changes mapped to physics handles BEFORE mutable borrow of world
+    let entities_pre_step = world.query_filtered(&[
+        canopy_ecs::component::ComponentId::of::<PhysicsHandles>(),
+        canopy_ecs::component::ComponentId::of::<Transform>(),
+    ]);
+
+    let mut pre_step_sync = Vec::new();
+    for entity in entities_pre_step {
+        let handles = world.get::<PhysicsHandles>(entity).unwrap().clone();
+        let transform = world.get::<Transform>(entity).unwrap().clone();
+        pre_step_sync.push((handles, transform));
+    }
+
     // 2. Initialize in physics world
     if let Some(physics_world) = world.get_resource_mut::<PhysicsWorld>() {
         for (entity, rb_desc, transform, collider_desc) in init_data {
@@ -64,6 +77,26 @@ pub fn physics_sync_system(world: &mut World, dt: f64) {
             };
 
             to_add_handles.push((entity, PhysicsHandles { body_handle, collider_handle }));
+        }
+
+        // Apply script teleports
+        for (handles, t) in pre_step_sync {
+            if let Some(body) = physics_world.rigid_body_set.get_mut(handles.body_handle) {
+                let pos = body.translation();
+                let diff = glam::Vec3::new(pos.x, pos.y, pos.z) - t.position;
+                if diff.length_squared() > 1e-5 {
+                    body.set_translation(rapier3d::na::Vector3::new(t.position.x, t.position.y, t.position.z), true);
+                }
+                
+                let rot = body.rotation();
+                let q_body = glam::Quat::from_xyzw(rot.i, rot.j, rot.k, rot.w);
+                let q_t = t.rotation;
+                if q_body.dot(q_t).abs() < 0.9999 {
+                    body.set_rotation(rapier3d::na::UnitQuaternion::from_quaternion(
+                        rapier3d::na::Quaternion::new(q_t.w, q_t.x, q_t.y, q_t.z)
+                    ), true);
+                }
+            }
         }
 
         // Step simulation

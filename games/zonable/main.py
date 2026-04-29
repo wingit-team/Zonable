@@ -25,17 +25,28 @@ def setup():
 @on_tick
 def rotate_cube(dt, query):
     
+    # Get camera forward and right vectors, flatten y to zero for character movement
+    cam_forward = canopy.world.get_camera_forward()
+    cam_forward.y = 0
+    if cam_forward.length() > 0:
+        cam_forward = cam_forward.normalized()
+        
+    cam_right = canopy.world.get_camera_right()
+    cam_right.y = 0
+    if cam_right.length() > 0:
+        cam_right = cam_right.normalized()
+    
     for entity, (transform,) in query.with_components(Transform):
-        # Move based on W/S/A/D keys
+        # Move based on W/S/A/D keys relative to camera
         move_speed = 5.0
         if Input.is_key_held("W"):
-            transform.position += Vec3(0, 0, -move_speed * dt)
+            transform.position += cam_forward * (move_speed * dt)
         if Input.is_key_held("S"):
-            transform.position += Vec3(0, 0, move_speed * dt)
+            transform.position += cam_forward * (-move_speed * dt)
         if Input.is_key_held("A"):
-            transform.position += Vec3(-move_speed * dt, 0, 0)
+            transform.position += cam_right * (-move_speed * dt)
         if Input.is_key_held("D"):
-            transform.position += Vec3(move_speed * dt, 0, 0)
+            transform.position += cam_right * (move_speed * dt)
         
         # Rotate based on Q and E keys
         rot_speed = 2.0
